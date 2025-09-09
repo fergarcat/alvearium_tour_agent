@@ -1,0 +1,12 @@
+python-dotenv
+pydantic
+fastapi
+uvicorn 
+langchain 
+pinecone-client 
+openai 
+tavily-python 
+pypdf 
+google-api
+google-auth-httplib2
+google-auth-oauthlib
