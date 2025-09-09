@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+from app.services.prompts import read_prompt
 from langchain_groq import ChatGroq
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
@@ -16,12 +17,12 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 # -----------------------------
 llm = ChatGroq(
     groq_api_key=GROQ_API_KEY,
-    model="llama-3.3-70b-versatile",
+    model="llama-3.3-70b-versatile",  # supported model
     temperature=0
 )
 
 # -----------------------------
-# 3. Define prompt infos (prompt_template as string)
+# 3. Define specialized prompts (prompt_template as string)
 # -----------------------------
 prompt_infos = [
     {
@@ -52,38 +53,37 @@ prompt_infos = [
 ]
 
 # -----------------------------
-# 4. Build router chain
+# 4. General prompt
 # -----------------------------
-categories_list = "\n".join([f"- {p['name']}: {p['description']}" for p in prompt_infos])
+general_prompt_text = read_prompt("general_prompt.txt")
+general_prompt = PromptTemplate(
+    template=general_prompt_text,
+    input_variables=["input"]
+)
 
-router_template = f"""
-You are a tourist assistant. Classify the following user question into one of the categories below:
-{categories_list}
-
-Question: {{input}}
-Return ONLY the name of the category.
-"""
-
-router_chain = LLMChain(
+general_chain = LLMChain(
     llm=llm,
-    prompt=PromptTemplate(template=router_template, input_variables=["input"])
+    prompt=general_prompt
 )
 
 # -----------------------------
-# 5. Create MultiPromptChain
+# 5. Create MultiPromptChain (routing)
 # -----------------------------
 multi_prompt_chain = MultiPromptChain.from_prompts(
     llm=llm,
-    prompt_infos=prompt_infos  # list of dicts with name, description, prompt_template (string)
+    prompt_infos=prompt_infos  # strings for prompt_template
 )
-
 
 # -----------------------------
 # 6. Routing function
 # -----------------------------
 def route_trip_query(user_input: str) -> str:
-    """Route the user query to the appropriate specialized prompt."""
-    return multi_prompt_chain.run(user_input)
+    """
+    Process the user input with a general prompt first,
+    then route it to the appropriate specialized prompt.
+    """
+    processed_input = general_chain.run(user_input)
+    return multi_prompt_chain.run(processed_input)
 
 # -----------------------------
 # 7. Example usage

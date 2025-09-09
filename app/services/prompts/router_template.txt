@@ -1,0 +1,7 @@
+f"""
+You are a tourist assistant. Classify the following user question into one of the categories below:
+{categories_list}
+
+Question: {{input}}
+Return ONLY the name of the category.
+"""
