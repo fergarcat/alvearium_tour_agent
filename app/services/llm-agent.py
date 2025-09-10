@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from langchain_groq import ChatGroq
+from langchain_openai import ChatOpenAI
 from langchain.chains import LLMChain
 from langchain.chains.router import MultiPromptChain
 from app.services.prompt_templates import GENERAL_PROMPT, PROMPT_INFOS
@@ -9,14 +9,14 @@ from app.services.prompt_templates import GENERAL_PROMPT, PROMPT_INFOS
 # 1. Load environment variables
 # -----------------------------
 load_dotenv()
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # -----------------------------
-# 2. Initialize Groq LLM
+# 2. Initialize OpenAI LLM
 # -----------------------------
-llm = ChatGroq(
-    groq_api_key=GROQ_API_KEY,
-    model="llama-3.3-70b-versatile",
+llm = ChatOpenAI(
+    openai_api_key=OPENAI_API_KEY,
+    model="gpt-4o-mini",
     temperature=0
 )
 
