@@ -1,68 +1,127 @@
-:root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+@import url('https://fonts.googleapis.com/css2?family=Urbanist:wght@100..900&display=swap')
+layer(base);
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap')
+layer(base);
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+@import 'tailwindcss';
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+@theme {
+  --font-*: initial;
+  --font-sans: Open Sans, sans-serif;
+  --font-urbanist: Urbanist, sans-serif;
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
+  --color-primary-blue: rgb(146, 179, 202);
+  --color-primary-orange: rgb(243, 195, 177);
+  --color-main-text: rgb(0, 43, 49);
+  --color-error-red: rgb(208, 69, 82);
 
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
+  /* Dark mode colors */
+  --color-gray-800: rgb(31, 41, 55);
+  --color-gray-900: rgb(17, 24, 39);
+  --color-gray-700: rgb(55, 65, 81);
+  --color-gray-600: rgb(75, 85, 99);
+  --color-gray-500: rgb(107, 114, 128);
+  --color-gray-400: rgb(156, 163, 175);
+  --color-gray-300: rgb(209, 213, 219);
+  --color-gray-200: rgb(229, 231, 235);
+  --color-gray-100: rgb(243, 244, 246);
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
+  --animate-spinner: spinner 1.5s linear infinite;
+  --animate-spinner-delayed: spinner 1.5s linear infinite 0.75s;
 
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
+  @keyframes spinner {
+    0% {
+      transform: scale(0);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 0;
+    }
   }
-  a:hover {
-    color: #747bff;
+}
+
+@utility container {
+  margin-inline: auto;
+  padding-inline: 2rem;
+  @media (width >= --theme(--breakpoint-sm)) {
+    max-width: none;
   }
-  button {
-    background-color: #f9f9f9;
+  @media (width >= 1400px) {
+    max-width: 1400px;
+  }
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+@utility spinner-child {
+  @apply absolute -top-1 left-0 h-full w-full content-[''] rounded-full bg-primary-orange dark:bg-primary-blue opacity-0;
+}
+
+@utility markdown-container {
+  & p {
+    @apply mb-5;
+  }
+
+  & h1 {
+    @apply font-bold mb-5;
+  }
+
+  & li {
+    @apply mb-3;
+  }
+
+  & li:last-child {
+    @apply mb-0;
+  }
+
+  & ol {
+    @apply list-decimal mx-0 mt-0 mb-5 pl-8;
+  }
+
+  & ul {
+    @apply list-disc mx-0 mt-0 mb-5 pl-8;
+  }
+
+  & > :last-child {
+    @apply mb-0;
+  }
+}
+
+@layer base {
+  body, html, #root {
+    @apply h-full bg-gray-100 text-main-text;
+  }
+
+  ::-webkit-scrollbar {
+    @apply h-4 w-2;
+  }
+
+  ::-webkit-scrollbar:horizontal {
+    @apply h-4 w-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent rounded-sm;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-primary-blue/50 border border-white dark:border-gray-700 rounded-sm dark:bg-primary-orange/50;
   }
 }
