@@ -73,12 +73,16 @@ function App() {
       position: 'relative'
     }}>
       {/* Header */}
+      
+
+
+      
       <div style={{
-        background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 50%, #EC4899 100%)',
+        background: 'linear-gradient(135deg, #282524 0%, #dea142 50%, #f8d9a4 100%)',
         color: 'white',
         padding: '24px',
         position: 'relative'
-      }}>
+      }}> 
         {/* Close button */}
         <button style={{
           position: 'absolute',
@@ -92,6 +96,8 @@ function App() {
         }}>×</button>
         
         {/* Logo */}
+        <img src="/logo-raton.png" alt="Ratoncito Pérez" width={100} height={100} />
+        {/*
         <div style={{
           width: '40px',
           height: '40px',
@@ -101,13 +107,14 @@ function App() {
           alignItems: 'center',
           justifyContent: 'center',
           marginBottom: '16px'
-        }}>
+        }}> 
           <span style={{
-            color: '#4F46E5',
+            color: '#dea142 ',
             fontWeight: 'bold',
             fontSize: '18px'
           }}>C</span>
         </div>
+        */}
         
         {/* Title */}
         <h1 style={{
@@ -115,7 +122,7 @@ function App() {
           fontWeight: '600',
           marginBottom: '8px',
           margin: 0
-        }}>ChatFlow</h1>
+        }}>Ratoncito Pérez </h1>
         
         {/* Description */}
         <p style={{
@@ -125,7 +132,7 @@ function App() {
           margin: 0,
           maxWidth: '280px'
         }}>
-          A live chat interface that allows for seamless, natural communication and connection.
+          Hola! Soy el Ratoncito Pérez, tu guía personal de Madrid. ¿En qué puedo ayudarte hoy?
         </p>
       </div>
       
@@ -142,7 +149,7 @@ function App() {
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <div style={{ maxWidth: '250px' }}>
                   <div style={{
-                    background: '#4F46E5',
+                    background: '#dea142 ',
                     color: 'white',
                     padding: '12px 16px',
                     borderRadius: '18px',
@@ -205,21 +212,21 @@ function App() {
                         <div style={{
                           width: '6px',
                           height: '6px',
-                          background: '#6366F1',
+                          background: '#dea142 ',
                           borderRadius: '50%',
                           animation: 'bounce 1.5s infinite'
                         }}></div>
                         <div style={{
                           width: '6px',
                           height: '6px',
-                          background: '#6366F1',
+                          background: '#dea142 ',
                           borderRadius: '50%',
                           animation: 'bounce 1.5s infinite 0.15s'
                         }}></div>
                         <div style={{
                           width: '6px',
                           height: '6px',
-                          background: '#6366F1',
+                          background: '#dea142 ',
                           borderRadius: '50%',
                           animation: 'bounce 1.5s infinite 0.3s'
                         }}></div>
@@ -243,12 +250,18 @@ function App() {
       </div>
       
       {/* Input */}
+      
       <div style={{
         padding: '16px',
         background: 'white',
         borderTop: '1px solid #E5E7EB'
       }}>
+      
+        {/* Input area */}
+
+        
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {/*
           <button style={{
             background: 'none',
             border: 'none',
@@ -258,6 +271,7 @@ function App() {
           }}>
             <FiSmile size={20} />
           </button>
+          */}
           
           <div style={{ flex: 1, position: 'relative' }}>
             <textarea
@@ -278,6 +292,7 @@ function App() {
               }}
               rows={1}
             />
+            {/*
             <button style={{
               position: 'absolute',
               right: '12px',
@@ -285,11 +300,11 @@ function App() {
               transform: 'translateY(-50%)',
               background: 'none',
               border: 'none',
-              color: '#9CA3AF',
+              color: '#f17807ff',
               cursor: 'pointer'
-            }}>
+            }}> 
               <FiPaperclip size={16} />
-            </button>
+            </button> */}
           </div>
           
           <button
@@ -300,7 +315,7 @@ function App() {
               height: '40px',
               borderRadius: '50%',
               border: 'none',
-              background: newMessage.trim() ? '#4F46E5' : '#E5E7EB',
+              background: newMessage.trim() ? '#dea142 ' : '#E5E7EB',
               color: 'white',
               display: 'flex',
               alignItems: 'center',
@@ -321,7 +336,7 @@ function App() {
         width: '48px',
         height: '48px',
         borderRadius: '50%',
-        background: '#4F46E5',
+        background: '#dea142 ',
         border: 'none',
         color: 'white',
         display: 'flex',
