@@ -147,61 +147,12 @@ class PersonalizedTripPlanner:
             except Exception as fallback_error:
                 return f"Lo siento, hubo un error al procesar tu consulta: {str(fallback_error)}"
     
-    def _format_final_response(self, query: str, family_id: str, router_response: Dict, routing_data: Dict) -> str:
+    def _format_final_response(self, query: str, family_id: str, router_response: str, routing_data: Dict) -> str:
         """Форматирует финальный ответ для пользователя"""
         try:
-            # Заголовок ответа
-            response_parts = [
-                f"🐭 **Respuesta del Ratoncito Pérez (Multi-Agent Architecture):**",
-                f"",
-                f"**Consulta:** {query}",
-                f"**Familia:** {family_id}",
-                f"**Tipo de consulta:** {router_response.get('query_type', 'general')}",
-                f"**Estado:** {router_response.get('status', 'unknown')}",
-                f""
-            ]
-            
-            # Добавляем результаты от специализированных агентов
-            agent_results = router_response.get("agent_results", {})
-            if agent_results:
-                response_parts.append("**Recomendaciones especializadas:**")
-                response_parts.append("")
-                
-                for agent_name, result in agent_results.items():
-                    agent_emoji = {
-                        "hotels": "🏨",
-                        "restaurants": "🍽️", 
-                        "activities": "🎯",
-                        "transport": "🚌"
-                    }.get(agent_name, "🤖")
-                    
-                    response_parts.append(f"{agent_emoji} **{agent_name.title()}:**")
-                    response_parts.append(f"{result}")
-                    response_parts.append("")
-            else:
-                response_parts.append("**Respuesta general:**")
-                response_parts.append(router_response.get("message", "Consulta procesada"))
-                response_parts.append("")
-            
-            # Добавляем информацию о профиле семьи
-            profile = routing_data.get("profile", {})
-            if profile:
-                response_parts.extend([
-                    "**Perfil familiar:**",
-                    f"- Edades de niños: {profile.get('kids_ages', [])}",
-                    f"- Adultos: {profile.get('adults_count', 0)}",
-                    f"- Presupuesto: {profile.get('budget_level', 'medium')}",
-                    f"- Intereses: {', '.join(profile.get('interests', []))}",
-                    f""
-                ])
-            
-            # Заключение
-            response_parts.extend([
-                "---",
-                f"*Respuesta generada por Multi-Agent Architecture*"
-            ])
-            
-            return "\n".join(response_parts)
+            # RouterAgent уже возвращает готовую строку с полным форматированием
+            # Просто возвращаем её как есть
+            return router_response
             
         except Exception as e:
             print(f"❌ Ошибка форматирования ответа: {e}")

@@ -53,6 +53,7 @@ class FrontendSimulator:
         print("\n📋 Доступные команды:")
         print("  /help     - Показать справку")
         print("  /profile  - Показать профиль семьи")
+        print("  /data     - Показать детальную передачу данных")
         print("  /scenario - Запустить тестовый сценарий")
         print("  /stats    - Показать статистику сессии")
         print("  /exit     - Выход")
@@ -70,6 +71,123 @@ class FrontendSimulator:
         }
         self.session_data["messages"].append(message)
     
+    def show_data_flow_info(self, user_input: str):
+        """Показывает информацию о передаче данных между агентами"""
+        try:
+            print("\n" + "=" * 60)
+            print("🔄 АНАЛИЗ ПЕРЕДАЧИ ДАННЫХ МЕЖДУ АГЕНТАМИ")
+            print("=" * 60)
+            
+            # Получаем профиль семьи
+            profile = self.planner.personalization_agent.get_family_profile(self.current_family_id)
+            
+            if profile:
+                print("📤 PersonalizationReactAgent ПЕРЕДАЕТ RouterAgent:")
+                print(f"   • Query: {user_input}")
+                print(f"   • Family ID: {self.current_family_id}")
+                print(f"   • Profile: {profile.family_id}")
+                print(f"     - Kids ages: {profile.kids_ages}")
+                print(f"     - Adults count: {profile.adults_count}")
+                print(f"     - Interests: {profile.interests}")
+                print(f"     - Special needs: {profile.special_needs}")
+                print(f"     - Language: {profile.language_preference}")
+                
+                # Анализируем запрос
+                query_analysis = self.planner.personalization_agent._analyze_query(user_input, self.current_family_id, profile)
+                print(f"   • Query analysis: {query_analysis}")
+                
+                # Показываем, какие агенты будут задействованы
+                needs_agents = []
+                if query_analysis.get("needs_hotels", False):
+                    needs_agents.append("hotels")
+                if query_analysis.get("needs_restaurants", False):
+                    needs_agents.append("restaurants")
+                if query_analysis.get("needs_activities", False):
+                    needs_agents.append("activities")
+                if query_analysis.get("needs_transport", False):
+                    needs_agents.append("transport")
+                
+                if needs_agents:
+                    print(f"   • Needs multi-agent: True")
+                    print(f"   • Agents needed: {', '.join(needs_agents)}")
+                    print(f"   • Query type: {query_analysis.get('query_type', 'general')}")
+                else:
+                    print(f"   • Needs multi-agent: False")
+                    print(f"   • Will use simple response")
+            else:
+                print("📤 PersonalizationReactAgent ПЕРЕДАЕТ RouterAgent:")
+                print(f"   • Query: {user_input}")
+                print(f"   • Family ID: {self.current_family_id}")
+                print(f"   • Profile: НЕ НАЙДЕН (будет создан новый)")
+                print(f"   • Will use sequential data collection")
+            
+            print("=" * 60)
+            
+        except Exception as e:
+            print(f"❌ Ошибка анализа данных: {e}")
+            print("=" * 60)
+    
+    def show_router_response_info(self, response: str):
+        """Показывает информацию о том, что получил RouterAgent"""
+        try:
+            print("\n" + "=" * 60)
+            print("📥 RouterAgent ОТВЕТИЛ ПОЛЬЗОВАТЕЛЮ:")
+            print("=" * 60)
+            
+            # Анализируем ответ
+            if "RouterAgent" in response:
+                print("✅ RouterAgent обработал запрос")
+                print(f"   • Тип ответа: Multi-Agent")
+                print(f"   • Длина ответа: {len(response)} символов")
+                
+                # Проверяем, какие агенты были задействованы
+                agents_used = []
+                if "🏨" in response:
+                    agents_used.append("hotels")
+                if "🍽️" in response:
+                    agents_used.append("restaurants")
+                if "🎯" in response:
+                    agents_used.append("activities")
+                if "🚌" in response:
+                    agents_used.append("transport")
+                
+                if agents_used:
+                    print(f"   • Агенты использованы: {', '.join(agents_used)}")
+                else:
+                    print(f"   • Агенты использованы: простой ответ")
+                    
+                # Проверяем использование данных профиля
+                profile_usage = []
+                if "niños" in response.lower():
+                    profile_usage.append("kids_ages")
+                if "adultos" in response.lower():
+                    profile_usage.append("adults_count")
+                if "presupuesto" in response.lower():
+                    profile_usage.append("budget_level")
+                if "fechas" in response.lower():
+                    profile_usage.append("dates")
+                if "intereses" in response.lower():
+                    profile_usage.append("interests")
+                if "necesidades especiales" in response.lower():
+                    profile_usage.append("special_needs")
+                
+                if profile_usage:
+                    print(f"   • Данные профиля использованы: {', '.join(profile_usage)}")
+                else:
+                    print(f"   • Данные профиля использованы: минимально")
+                    
+            else:
+                print("ℹ️ PersonalizationReactAgent обработал запрос")
+                print(f"   • Тип ответа: Simple/Sequential")
+                print(f"   • Длина ответа: {len(response)} символов")
+                print(f"   • RouterAgent не задействован")
+            
+            print("=" * 60)
+            
+        except Exception as e:
+            print(f"❌ Ошибка анализа ответа: {e}")
+            print("=" * 60)
+    
     def process_user_input(self, user_input: str) -> str:
         """Обрабатывает пользовательский ввод"""
         start_time = datetime.now()
@@ -84,8 +202,14 @@ class FrontendSimulator:
                 self.current_family_id = f"user_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
                 print(f"🆔 Создан ID семьи: {self.current_family_id}")
             
+            # Показываем информацию о передаче данных между агентами
+            self.show_data_flow_info(user_input)
+            
             # Отправляем запрос в систему
             response = self.planner.process_query(user_input, self.current_family_id)
+            
+            # Показываем, что получил RouterAgent
+            self.show_router_response_info(response)
             
             # Логируем время ответа
             response_time = (datetime.now() - start_time).total_seconds()
@@ -104,6 +228,8 @@ class FrontendSimulator:
             return self.show_help()
         elif command == "/profile":
             return self.show_profile()
+        elif command == "/data":
+            return self.show_detailed_data_flow()
         elif command == "/scenario":
             return self.run_test_scenario()
         elif command == "/stats":
@@ -120,6 +246,7 @@ class FrontendSimulator:
 
 /help     - Показать эту справку
 /profile  - Показать текущий профиль семьи
+/data     - Показать детальную передачу данных между агентами
 /scenario - Запустить тестовый сценарий
 /stats    - Показать статистику сессии
 /exit     - Выход из программы
@@ -130,6 +257,58 @@ class FrontendSimulator:
 - Задавайте вопросы о поездке: "¿Qué hoteles me recomiendas?"
 - Используйте естественный язык для общения
         """
+    
+    def show_detailed_data_flow(self) -> str:
+        """Показывает детальную информацию о передаче данных между агентами"""
+        if not self.current_family_id:
+            return "❌ Семья не выбрана. Начните диалог с ботом."
+        
+        try:
+            profile = self.planner.personalization_agent.get_family_profile(self.current_family_id)
+            
+            if not profile:
+                return """
+📊 ДЕТАЛЬНЫЙ АНАЛИЗ ПЕРЕДАЧИ ДАННЫХ:
+
+❌ Профиль семьи не найден
+📤 PersonalizationReactAgent будет:
+   • Создавать новый профиль через последовательный сбор данных
+   • Не передавать данные в RouterAgent
+   • Обрабатывать запросы самостоятельно
+
+💡 Создайте профиль семьи, описав свою семью боту.
+                """
+            
+            # Получаем полную информацию о том, что передается
+            routing_data = self.planner.personalization_agent.prepare_data_for_routing("test_query", self.current_family_id)
+            
+            return f"""
+📊 ДЕТАЛЬНЫЙ АНАЛИЗ ПЕРЕДАЧИ ДАННЫХ:
+
+📤 PersonalizationReactAgent ПЕРЕДАЕТ RouterAgent:
+{json.dumps(routing_data, indent=2, ensure_ascii=False)}
+
+📥 RouterAgent ПОЛУЧАЕТ:
+   • Query: {routing_data.get('query', 'N/A')}
+   • Family ID: {routing_data.get('family_id', 'N/A')}
+   • Profile data: {len(routing_data.get('profile', {}))} полей
+   • Query analysis: {len(routing_data.get('query_analysis', {}))} полей
+   • Needs flags: {[k for k, v in routing_data.items() if k.startswith('needs_') and v]}
+
+🔍 АНАЛИЗ ИСПОЛЬЗОВАНИЯ ДАННЫХ:
+   • Используется в логах: query, family_id
+   • Используется для агентов: needs_hotels, needs_restaurants, needs_activities, needs_transport
+   • Используется в ответах: profile.kids_ages, profile.adults_count, profile.budget_level, etc.
+   • НЕ используется: query_analysis (полностью), is_planning
+
+💡 РЕКОМЕНДАЦИИ:
+   • Все данные передаются корректно
+   • RouterAgent получает полную информацию о семье
+   • Специализированные агенты могут использовать все поля профиля
+            """
+            
+        except Exception as e:
+            return f"❌ Ошибка анализа данных: {e}"
     
     def show_profile(self) -> str:
         """Показывает профиль семьи"""

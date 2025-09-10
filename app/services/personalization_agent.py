@@ -79,7 +79,7 @@ class PersonalizationReactAgent:
         self.data_collector = FamilyDataCollector()
         self.router_agent = RouterAgent()
         
-        print("✅ PersonalizationReactAgent (Enhanced Agent) инициализирован")
+        print("✅  1  (Enhanced Agent) инициализирован")
         
         # Создаем инструменты для React Agent
         self.tools = [
@@ -441,6 +441,18 @@ Empecemos con la primera pregunta:
             query_analysis = self._analyze_query(query, user_id, profile)
             print(f"   Анализ запроса: {query_analysis}")
             
+            # 3.1. Если нужны специализированные агенты, передаем в RouterAgent
+            if query_analysis.get("needs_multi_agent", False):
+                print("   🔄 Передача в RouterAgent для мультиагентной обработки...")
+                routing_data = self.prepare_data_for_routing(query, user_id)
+                
+                # 4. Сохраняем запрос в Supabase
+                self._save_travel_request(query, "Multi-agent processing", profile)
+                
+                # 5. Передаем управление RouterAgent - он сам вернет ответ пользователю
+                return self.router_agent.process_routing_data(routing_data)
+            
+            # 3.2. Если не нужны специализированные агенты, работаем как обычно
             context_query = f"Usuario {user_id}: {query}"
             response = self.agent.invoke({"input": context_query})
             
@@ -1035,6 +1047,7 @@ Ahora necesito saber:
         except Exception as e:
             print(f"❌ Ошибка создания профиля: {e}")
             return f"❌ Error al crear tu perfil: {str(e)}"
+    
 
 # -----------------------------
 # Example usage
