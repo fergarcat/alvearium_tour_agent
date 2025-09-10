@@ -1,18 +1,21 @@
+# llm_conversation.py
 import os
+import json
+import re
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain.chains import LLMChain
-from langchain.chains.router import MultiPromptChain
-from app.services.prompt_templates import GENERAL_PROMPT, PROMPT_INFOS
+from app.services.prompt_templates import PLAN_PROMPT, TOOTH_FAIRY_PROMPT
+from app.services.create_trip import create_trip
 
 # -----------------------------
-# 1. Load environment variables
+# Load environment variables
 # -----------------------------
 load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 # -----------------------------
-# 2. Initialize Groq LLM
+# Initialize Groq LLM
 # -----------------------------
 llm = ChatGroq(
     groq_api_key=GROQ_API_KEY,
@@ -20,38 +23,136 @@ llm = ChatGroq(
     temperature=0
 )
 
-# -----------------------------
-# 3. General chain
-# -----------------------------
-general_chain = LLMChain(llm=llm, prompt=GENERAL_PROMPT)
+# Create Tooth Fairy Chain
+tooth_fairy_chain = LLMChain(llm=llm, prompt=TOOTH_FAIRY_PROMPT)
 
 # -----------------------------
-# 4. MultiPromptChain for routing
+# Global conversation memory
 # -----------------------------
-multi_prompt_chain = MultiPromptChain.from_prompts(
-    llm=llm,
-    prompt_infos=PROMPT_INFOS
-)
+conversation_state = {}
+
+# Define REQUIRED fields
+REQUIRED_FIELDS = [
+    "adults",
+    "children",
+    "children_age",
+    "trip_duration",
+    "hotels",
+    "restaurants",
+    "transportation",
+    "activities"
+]
+
+def update_conversation_state(new_data: dict):
+    """Merge new extracted data with existing conversation state."""
+    for key, value in new_data.items():
+        if value and value != "Not specified":
+            conversation_state[key] = value
 
 # -----------------------------
-# 5. Routing function
+# Temperature adjustment
 # -----------------------------
-def route_trip_query(user_input: str) -> str:
-    """
-    Preprocess user input with general prompt, then route it to the specialized prompt.
-    """
-    processed_input = general_chain.run(user_input)
-    return multi_prompt_chain.run(processed_input)
+def set_temperature(temp: float):
+    llm.temperature = temp
+
+# ------------------------------
+# Mouse translation
+# ------------------------------
+def mouse_talking(conversation_state, follow_up_question):
+    set_temperature(0.7)  # Make Tooth Fairy more conversational
+    conversation_str = json.dumps(conversation_state, indent=2)
+    tooth_fairy_output = tooth_fairy_chain.run({
+        "conversation_state": conversation_str,
+        "follow_up_question": follow_up_question
+    })
+    return tooth_fairy_output.strip()
 
 # -----------------------------
-# 6. Example usage
+# JSON extraction helper
+# -----------------------------
+def extract_json_from_response(response: str) -> dict:
+    try:
+        match = re.search(r"\{.*\}", response, re.DOTALL)
+        if match:
+            return json.loads(match.group(0))
+        raise ValueError("No valid JSON found in response")
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON format: {e}")
+
+# -----------------------------
+# Check for missing required fields
+# -----------------------------
+def get_first_missing_required_field() -> str:
+    """Return the first required field that is still missing."""
+    for field in REQUIRED_FIELDS:
+        if conversation_state.get(field, "Not specified") == "Not specified":
+            return field
+    return None
+
+# -----------------------------
+# Query processing
+# -----------------------------
+def process_user_input(user_input: str):
+    """Extract structured trip info and update conversation state."""
+    set_temperature(0)  # Keep planning precise
+    try:
+        # Build prompt with current state
+        prompt_input = (
+            f"Current conversation state: {json.dumps(conversation_state, indent=2)}\n"
+            f"New user input: {user_input}"
+        )
+
+        # Run main planning chain
+        raw_response = LLMChain(llm=llm, prompt=PLAN_PROMPT).run(prompt_input).strip()
+        trip_data = extract_json_from_response(raw_response)
+
+        # Merge new data
+        update_conversation_state(trip_data)
+
+        # Print conversation state
+        print("\n=== Conversation State ===")
+        print(json.dumps(conversation_state, indent=2))
+        print("==========================")
+
+        # Check required fields first
+        missing_required = get_first_missing_required_field()
+        if missing_required:
+            # Always prioritize missing REQUIRED fields
+            follow_up_question = f"Could you please provide details for '{missing_required}'?"
+        else:
+            # If all required fields are filled, force the follow-up to be empty
+            follow_up_question = ""
+
+
+        # Ask a follow-up if needed
+        if follow_up_question:
+            return mouse_talking(conversation_state, follow_up_question)
+        else:
+            #create_trip(conversation_state)  # Finalize trip creation
+            return mouse_talking(conversation_state,"")
+            
+            
+
+        return None
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return f"Error processing input: {str(e)}"
+
+# -----------------------------
+# Main loop
 # -----------------------------
 if __name__ == "__main__":
-    print("=== Tourist Agent Chatbot ===")
+    print("=== Tooth Fairy Tourist Chatbot ===")
     while True:
         query = input("\nAsk me about your trip (or type 'exit'): ")
         if query.lower() in ["exit", "quit"]:
             print("Goodbye! 👋")
             break
-        response = route_trip_query(query)
-        print("\nAgent:", response)
+
+        follow_up = process_user_input(query)
+        if follow_up:
+            print(follow_up)
+        else:
+            print("✅ All required information gathered! You can now generate your plan.")

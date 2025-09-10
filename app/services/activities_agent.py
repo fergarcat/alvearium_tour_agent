@@ -1,5 +1,5 @@
 from crewai import Agent
-from utils.llm_config import llm
+from app.utils.llm_config import llm
 
 activities_agent = Agent(
     role="Agente de Actividades Turísticas",
