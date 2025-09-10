@@ -56,7 +56,7 @@ def set_temperature(temp: float):
     llm.temperature = temp
 
 # ------------------------------
-# Mouse translation
+# Mouse Iterative Talking
 # ------------------------------
 def mouse_talking(conversation_state, follow_up_question):
     set_temperature(0.7)  # Make Tooth Fairy more conversational
@@ -66,6 +66,19 @@ def mouse_talking(conversation_state, follow_up_question):
         "follow_up_question": follow_up_question
     })
     return tooth_fairy_output.strip()
+
+def mouse_greeting(language="Spanish"):
+    set_temperature(0.7)  # Make Tooth Fairy more conversational
+    conversation_str = json.dumps(conversation_state, indent=2)
+    tooth_fairy_output = tooth_fairy_chain.run({
+        "conversation_state": "",
+        "follow_up_question": "Introduce yourself briefly and greet the user in " + language + " and offer help with trip planning."
+    })
+    return tooth_fairy_output.strip()
+
+def mouse_trip_creation(conversation_state):
+    set_temperature(0.7)  # Make Tooth Fairy more conversational
+    return mouse_talking(conversation_state,"")
 
 # -----------------------------
 # JSON extraction helper
@@ -94,7 +107,7 @@ def get_first_missing_required_field() -> str:
 # -----------------------------
 def process_user_input(user_input: str):
     """Extract structured trip info and update conversation state."""
-    set_temperature(0)  # Keep planning precise
+    
     try:
         # Build prompt with current state
         prompt_input = (
@@ -103,6 +116,7 @@ def process_user_input(user_input: str):
         )
 
         # Run main planning chain
+        set_temperature(0)  # Keep extraction deterministic
         raw_response = LLMChain(llm=llm, prompt=PLAN_PROMPT).run(prompt_input).strip()
         trip_data = extract_json_from_response(raw_response)
 
@@ -128,12 +142,9 @@ def process_user_input(user_input: str):
         if follow_up_question:
             return mouse_talking(conversation_state, follow_up_question)
         else:
-            create_trip(conversation_state)  # Finalize trip creation
-            #return mouse_talking(conversation_state,"")
+            mouse_trip_creation(conversation_state)
+            return create_trip(conversation_state)  # Finalize trip creation
             
-            
-
-        return None
 
     except Exception as e:
         import traceback
@@ -144,7 +155,9 @@ def process_user_input(user_input: str):
 # Main loop
 # -----------------------------
 if __name__ == "__main__":
-    print("=== Tooth Fairy Tourist Chatbot ===")
+    print("=== Tooth Fairy Tourist Chatbot ===\n")
+    print(mouse_greeting())
+
     while True:
         query = input("\nAsk me about your trip (or type 'exit'): ")
         if query.lower() in ["exit", "quit"]:
