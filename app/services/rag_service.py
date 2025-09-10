@@ -2,76 +2,77 @@ import os
 from pathlib import Path
 import requests
 from dotenv import load_dotenv
+from langchain_community.vectorstores import FAISS
+
+# Utils
+from .pdf_loader import download_pdfs, load_all_pdfs
 
 # LangChain
-from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import FAISS
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 
 # =====================
 # Configuración inicial
 # =====================
 load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-
 if not GROQ_API_KEY:
     raise ValueError("⚠️ No se encontró GROQ_API_KEY en .env")
 
-BASE_DIR = Path(__file__).resolve().parent.parent  # /app
-DATA_DIR = BASE_DIR / "data"
-
+# La ruta base ahora se calcula correctamente desde este archivo
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+VECTORSTORE_DIR = BASE_DIR / "vectorstore"
 
 # =====================
 # Construcción del vectorstore
 # =====================
 def build_vectorstore():
-    docs = []
-    for file in DATA_DIR.glob("*.pdf"):
-        loader = PyPDFLoader(str(file))
-        file_docs = loader.load()
-        print(f"📄 {file.name}: {len(file_docs)} páginas")
-        docs.extend(file_docs)
+    """Descarga PDFs, construye embeddings y guarda el vectorstore."""
+    pdf_paths = download_pdfs("pdf_ids.txt")
+    print(f"📥 PDFs descargados: {len(pdf_paths)}")
 
-    if not docs:
-        raise ValueError("⚠️ No se cargaron documentos desde ningún PDF.")
+    all_text = load_all_pdfs(pdf_paths)
+    if not all_text.strip():
+        raise ValueError("⚠️ No se extrajo texto de los PDFs")
 
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-    chunks = splitter.split_documents(docs)
-    print(f"✂️ Chunks creados: {len(chunks)}")
+    docs = splitter.create_documents([all_text])
+    print(f"✂️ Chunks creados: {len(docs)}")
 
-    # HuggingFace embeddings (gratis y local)
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-
-    vectorstore = FAISS.from_documents(chunks, embeddings)
-    vectorstore.save_local("vectorstore")
-    print("✅ Vectorstore creado y guardado en ./vectorstore")
+    embeddings = HuggingFaceEmbeddings(
+        model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    )
+    vectorstore = FAISS.from_documents(docs, embeddings)
+    vectorstore.save_local(str(VECTORSTORE_DIR))
+    print(f"✅ Vectorstore creado en {VECTORSTORE_DIR}")
 
 
 # =====================
-# Cargar vectorstore y buscar
+# Consultar vectorstore
 # =====================
-def query_vectorstore(query: str, k: int = 3):
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    vs = FAISS.load_local("vectorstore", embeddings, allow_dangerous_deserialization=True)
-    results = vs.similarity_search(query, k=k)
-    return [r.page_content for r in results]
+def query_vectorstore(query: str, vectorstore: FAISS, k: int = 3, score_threshold: float = 0.3):
+    """Busca en el vectorstore con puntajes y filtra resultados poco relevantes."""
+    results = vectorstore.similarity_search_with_score(query, k=k)
+
+    # Filtrar por score
+    filtered = [doc.page_content for doc, score in results if score >= score_threshold]
+
+    if not filtered:
+        return ["⚠️ No encontré información relevante en los PDFs"]
+
+    return filtered
 
 
 # =====================
 # Llamada a Groq API
 # =====================
 def call_groq(messages, model="llama-3.1-8b-instant"):
-
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
-    payload = {
-        "model": model,
-        "messages": messages
-    }
+    payload = {"model": model, "messages": messages}
     res = requests.post(url, headers=headers, json=payload)
     if res.status_code != 200:
         raise RuntimeError(f"Groq API error {res.status_code}: {res.text}")
@@ -81,43 +82,67 @@ def call_groq(messages, model="llama-3.1-8b-instant"):
 # =====================
 # Agente mágico del Ratoncito Pérez
 # =====================
-def ratoncito_perez_agent(query: str):
-    # Recuperar contexto desde PDFs
-    pdf_context = query_vectorstore(query, k=3)
+def ratoncito_perez_agent(query: str, vectorstore: FAISS):
+    """Agente mágico que responde usando PDFs + Groq."""
+    pdf_context = query_vectorstore(query, vectorstore, k=5)
     context = "\n\n".join(pdf_context)
 
     prompt = f"""
-    Eres el Ratoncito Pérez 🐭✨, un asistente turístico mágico.
-    Tu misión es ayudar a familias que visitan Madrid a planificar su viaje.
+    🐭✨ Soy el Ratoncito Pérez, tu guía turístico mágico en Madrid.
 
-    Instrucciones:
-    - Usa la información recuperada (gastronomía, transporte, festividades).
-    - Habla en tono cálido, mágico y divertido para los niños.
-    - Incluye consejos prácticos para los padres.
-    - Recomienda actividades, restaurantes, transportes y festividades.
-    - Añade siempre un "secreto mágico del Ratoncito Pérez".
-
-    Pregunta del usuario:
+    👨‍👩‍👧 Pregunta de la familia:
     {query}
 
-    Información de contexto:
+    📚 Información encontrada en mis libritos mágicos:
     {context}
+
+    ✨ Instrucciones para mi respuesta:
+    1. Da recomendaciones claras de actividades, restaurantes y transporte.
+    2. Habla en tono cálido, mágico y divertido para los niños.
+    3. Incluye consejos prácticos para los padres.
+    4. Añade siempre un "secreto mágico del Ratoncito Pérez".
+    5. Responde en máximo 5 párrafos.
     """
 
     messages = [{"role": "user", "content": prompt}]
     response = call_groq(messages)
     return response
 
-
 # =====================
-# Main
+# Bloque de ejecución principal para testing
 # =====================
 if __name__ == "__main__":
-    # Construir vectorstore una vez (luego comentar esta línea)
-    build_vectorstore()
+    print("--- 🚀 Iniciando el sistema RAG del Ratoncito Pérez... ---")
+    
+    try:
+        # Verifica si el vectorstore existe, si no, lo construye
+        if not VECTORSTORE_DIR.exists() or not os.listdir(VECTORSTORE_DIR):
+            print("⏳ El vectorstore no existe o está vacío. Creando uno nuevo...")
+            build_vectorstore()
+        else:
+            print("✅ El vectorstore ya existe. Saltando la creación.")
 
-    # Ejemplo de consulta
-    pregunta = "Qué podemos hacer en Madrid en mayo con niños pequeños"
-    respuesta = ratoncito_perez_agent(pregunta)
-    print("\n🤖 Respuesta del Ratoncito Pérez:\n")
-    print(respuesta)
+        # Carga el vectorstore en memoria para la prueba
+        embeddings = HuggingFaceEmbeddings(
+            model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+        )
+        test_vectorstore = FAISS.load_local(
+            str(VECTORSTORE_DIR),
+            embeddings,
+            allow_dangerous_deserialization=True,
+        )
+        print("✅ Vectorstore cargado para prueba.")
+        
+        # Ejemplo de una consulta para verificar que todo funciona
+        print("\n--- 🧠 Realizando una consulta de prueba... ---")
+        test_query = "¿Qué actividades hay en Madrid para familias con niños?"
+        
+        # Llama a tu agente mágico, pasando el vectorstore
+        response = ratoncito_perez_agent(test_query, test_vectorstore)
+
+        print("\n--- ✅ El sistema RAG está funcionando correctamente. ---")
+        print("\n✨ La respuesta del Ratoncito Pérez es:")
+        print(response)
+        
+    except Exception as e:
+        print(f"\n❌ ¡Ocurrió un error! El sistema RAG no pudo ejecutarse. \nError: {e}")
