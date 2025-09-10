@@ -128,8 +128,8 @@ def process_user_input(user_input: str):
         if follow_up_question:
             return mouse_talking(conversation_state, follow_up_question)
         else:
-            #create_trip(conversation_state)  # Finalize trip creation
-            return mouse_talking(conversation_state,"")
+            create_trip(conversation_state)  # Finalize trip creation
+            #return mouse_talking(conversation_state,"")
             
             
 
