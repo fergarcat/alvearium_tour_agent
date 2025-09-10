@@ -16,9 +16,6 @@ class FamilyProfileSupabase:
     family_id: str  # ID семьи в Supabase
     kids_ages: List[int]
     adults_count: int
-    budget_level: str  # "low", "medium", "high"
-    start_date: str  # "YYYY-MM-DD"
-    end_date: str  # "YYYY-MM-DD"
     interests: List[str]
     origin_country: str
     
@@ -60,11 +57,11 @@ class FamilyProfileSupabase:
             print(f"❌ Ошибка инициализации Supabase: {e}")
             raise
     
-    def get_stay_duration(self) -> int:
+    def get_stay_duration(self, start_date: str, end_date: str) -> int:
         """Возвращает продолжительность поездки в днях"""
         from datetime import datetime
-        start = datetime.strptime(self.start_date, "%Y-%m-%d")
-        end = datetime.strptime(self.end_date, "%Y-%m-%d")
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
         return (end - start).days
     
     def get_family_size(self) -> int:
@@ -96,11 +93,7 @@ class FamilyProfileSupabase:
             "transport_preferences": [self.transportation_preference] if self.transportation_preference else [],
             "accessibility_needs": self.special_needs or [],
             "medical_restrictions": [],
-            "budget_level": self.budget_level,
-            "arrival_date": self.start_date,
-            "departure_date": self.end_date,
             "metadata": {
-                "stay_duration": self.get_stay_duration(),
                 "family_size": self.get_family_size(),
                 "age_group": self.get_age_group()
             }
@@ -234,9 +227,7 @@ class FamilyProfileSupabase:
             self.family_id = family_data["family_id"]
             self.kids_ages = kids_ages
             self.adults_count = adults_count
-            self.budget_level = family_data["budget_level"]
-            self.start_date = family_data["arrival_date"]
-            self.end_date = family_data["departure_date"]
+            # budget_level, start_date, end_date больше не хранятся в таблице families
             self.interests = family_data["interests"]
             self.origin_country = family_data["origin_country"]
             self.special_needs = family_data["accessibility_needs"]
@@ -327,7 +318,8 @@ class FamilyProfileSupabase:
             print(f"❌ Ошибка создания AI профиля: {e}")
             return None
     
-    def save_travel_request(self, request_type: str, request_data: Dict[str, Any], trip_preferences: str = "") -> Optional[str]:
+    def save_travel_request(self, request_type: str, request_data: Dict[str, Any], trip_preferences: str = "", 
+                          budget_level: str = "medium", start_date: str = "", end_date: str = "") -> Optional[str]:
         """Сохраняет запрос на планирование поездки с пожеланиями"""
         if not self._supabase:
             print("❌ Supabase клиент не инициализирован")
@@ -363,15 +355,10 @@ class FamilyProfileSupabase:
                         "special_needs": self.special_needs or []
                     }
                 },
-                "budget_constraints": {
-                    "budget_level": self.budget_level,
-                    "estimated_cost": request_data.get("estimated_cost", 0)
-                },
-                "time_constraints": {
-                    "start_date": self.start_date,
-                    "end_date": self.end_date,
-                    "duration_days": self.get_stay_duration()
-                }
+                "budget_level": budget_level,
+                "arrival_date": start_date,
+                "departure_date": end_date
+                # duration_days убрано - база данных сама вычислит как (departure_date - arrival_date)
             }
             
             result = self._supabase.table("travel_requests").insert(request_record).execute()

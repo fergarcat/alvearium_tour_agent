@@ -206,9 +206,6 @@ def get_family_profile_tool(family_id: str) -> str:
             family_id=family_id,
             kids_ages=[],
             adults_count=0,
-            budget_level="",
-            start_date="",
-            end_date="",
             interests=[],
             origin_country=""
         )
@@ -836,7 +833,7 @@ CAMPOS POSIBLES:
 - travel_dates: fechas de viaje (ej: "2024-10-15 to 2024-10-20")
 - interests: array de intereses (ej: ["museos", "parques"])
 - origin_country: país de origen (ej: "España")
-- special_needs: array de necesidades especiales (ej: ["autismo"])
+- special_needs: array de necesidades especiales (ej: ["autismo"] o [] si no hay)
 
 REGLAS:
 1. Si la respuesta es sobre niños, extrae kids_ages
@@ -845,7 +842,9 @@ REGLAS:
 4. Si la respuesta es sobre fechas, extrae travel_dates
 5. Si la respuesta es sobre intereses, extrae interests
 6. Si la respuesta es sobre país, extrae origin_country
-7. Si la respuesta es sobre necesidades especiales, extrae special_needs
+7. Si la respuesta es sobre necesidades especiales, extrae special_needs:
+   - Si menciona necesidades específicas, inclúyelas en el array
+   - Si dice "no", "no hay", "no las tengo", "todo normal", devuelve special_needs: []
 8. Si no puedes extraer información específica, devuelve solo el campo "message" con una explicación
 9. Si la respuesta es confusa o incompleta, devuelve "message" pidiendo aclaración
 
@@ -857,6 +856,9 @@ Ejemplos:
 - "Somos 4 adultos" → {{"adults_count": 4}}
 - "Presupuesto medio" → {{"budget_level": "medium"}}
 - "Del 15 al 20 de octubre" → {{"travel_dates": "2024-10-15 to 2024-10-20"}}
+- "No hay necesidades especiales" → {{"special_needs": []}}
+- "No, todo normal" → {{"special_needs": []}}
+- "No" (sobre necesidades especiales) → {{"special_needs": []}}
 - "No entiendo" → {{"message": "No pude entender tu respuesta. Por favor, responde de manera más específica."}}""",
             input_variables=["current_question", "collected_info", "user_response"]
         )

@@ -109,9 +109,6 @@ async def process_query(
                 family_id=request.family_id,
                 kids_ages=[],
                 adults_count=0,
-                budget_level="medium",
-                start_date="2024-12-01",
-                end_date="2024-12-05",
                 interests=[],
                 origin_country="Spain"
             )
@@ -121,9 +118,9 @@ async def process_query(
                     "family_id": family_profile.family_id,
                     "family_size": family_profile.get_family_size(),
                     "age_group": family_profile.get_age_group(),
-                    "budget_level": family_profile.budget_level,
+                    "budget_level": "medium",  # Дефолтное значение
                     "interests": family_profile.interests,
-                    "stay_duration": family_profile.get_stay_duration()
+                    "stay_duration": 5  # Дефолтная продолжительность
                 }
         except Exception as e:
             # Если не удалось загрузить профиль, используем базовую информацию
@@ -183,7 +180,7 @@ async def initialize_family_profile(
                 "family_id": profile.family_id,
                 "family_size": profile.get_family_size(),
                 "age_group": profile.get_age_group(),
-                "budget_level": profile.budget_level
+                "budget_level": "medium"  # Дефолтное значение
             }
         else:
             raise HTTPException(
@@ -213,9 +210,6 @@ async def get_family_profile(
             family_id=family_id,
             kids_ages=[],
             adults_count=0,
-            budget_level="medium",
-            start_date="2024-12-01",
-            end_date="2024-12-05",
             interests=[],
             origin_country="Spain"
         )
@@ -230,9 +224,9 @@ async def get_family_profile(
             "family_id": profile.family_id,
             "kids_ages": profile.kids_ages,
             "adults_count": profile.adults_count,
-            "budget_level": profile.budget_level,
-            "start_date": profile.start_date,
-            "end_date": profile.end_date,
+            "budget_level": "medium",  # Дефолтное значение
+            "start_date": "2024-12-01",  # Дефолтная дата
+            "end_date": "2024-12-05",    # Дефолтная дата
             "interests": profile.interests,
             "origin_country": profile.origin_country,
             "special_needs": profile.special_needs or [],
@@ -269,9 +263,6 @@ async def create_ai_profile(
             family_id=family_id,
             kids_ages=[],
             adults_count=0,
-            budget_level="medium",
-            start_date="2024-12-01",
-            end_date="2024-12-05",
             interests=[],
             origin_country="Spain"
         )
@@ -377,9 +368,6 @@ async def agent_health():
             family_id="health_check",
             kids_ages=[5],
             adults_count=2,
-            budget_level="medium",
-            start_date="2024-12-01",
-            end_date="2024-12-05",
             interests=["test"],
             origin_country="Spain"
         )
@@ -455,7 +443,7 @@ async def chat_with_agent(
                     response = f"""🐭 ¡Hola de nuevo! Ya tengo tu perfil familiar guardado.
 
 Tu familia: {profile.get_family_size()} miembros, {profile.get_age_group()}
-Presupuesto: {profile.budget_level}
+Presupuesto: medium
 Intereses: {', '.join(profile.interests) if profile.interests else 'No especificados'}
 
 ¿En qué puedo ayudarte con tu viaje a Madrid?"""

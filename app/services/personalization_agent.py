@@ -259,9 +259,6 @@ class PersonalizationReactAgent:
                 family_id=data["family_id"],
                 kids_ages=data.get("kids_ages", []),
                 adults_count=data.get("adults_count", 0),
-                budget_level=budget_level,
-                start_date=start_date,
-                end_date=end_date,
                 interests=data.get("interests", []) if isinstance(data.get("interests"), list) else [],
                 origin_country=data.get("origin_country", ""),
                 special_needs=data.get("special_needs", []) if isinstance(data.get("special_needs"), list) else [],
@@ -486,9 +483,6 @@ Empecemos con la primera pregunta:
                 family_id=family_id,
                 kids_ages=[],
                 adults_count=0,
-                budget_level="medium",
-                start_date="",
-                end_date="",
                 interests=[],
                 origin_country=""
             )
@@ -509,17 +503,11 @@ Empecemos con la primera pregunta:
                 print(f"❌ Профиль семьи {family_id} не найден")
                 return
         
-            # Обновляем поля
+            # Обновляем поля (только те, которые существуют в модели)
             if "kids_ages" in profile_data:
                 profile.kids_ages = profile_data["kids_ages"]
             if "adults_count" in profile_data:
                 profile.adults_count = profile_data["adults_count"]
-            if "budget_level" in profile_data:
-                profile.budget_level = profile_data["budget_level"]
-            if "start_date" in profile_data:
-                profile.start_date = profile_data["start_date"]
-            if "end_date" in profile_data:
-                profile.end_date = profile_data["end_date"]
             if "interests" in profile_data:
                 profile.interests = profile_data["interests"]
             if "origin_country" in profile_data:
@@ -528,6 +516,21 @@ Empecemos con la primera pregunta:
                 profile.special_needs = profile_data["special_needs"]
             if "language_preference" in profile_data:
                 profile.language_preference = profile_data["language_preference"]
+            
+            # Для budget_level, start_date, end_date создаем travel_request
+            if any(key in profile_data for key in ["budget_level", "start_date", "end_date"]):
+                budget_level = profile_data.get("budget_level", "medium")
+                start_date = profile_data.get("start_date", "2024-12-01")
+                end_date = profile_data.get("end_date", "2024-12-05")
+                
+                profile.save_travel_request(
+                    request_type="accommodation",
+                    request_data={"preferences": {}},
+                    trip_preferences="",
+                    budget_level=budget_level,
+                    start_date=start_date,
+                    end_date=end_date
+                )
             
             # Сохраняем в Supabase
             profile.update_in_supabase()
@@ -557,9 +560,6 @@ Empecemos con la primera pregunta:
             family_id=family_id,
             kids_ages=temp_profile.kids_ages,
             adults_count=temp_profile.adults_count,
-            budget_level=temp_profile.budget_level,
-            start_date=temp_profile.start_date,
-            end_date=temp_profile.end_date,
             interests=temp_profile.interests,
             origin_country=temp_profile.origin_country,
             special_needs=temp_profile.special_needs,
@@ -582,12 +582,9 @@ Empecemos con la primera pregunta:
             family_id=family_id,
             kids_ages=[8, 12],  # Дефолтные возрасты
             adults_count=2,     # Дефолтное количество взрослых
-            budget_level="medium",  # Дефолтный бюджет
-            start_date="2024-06-15",  # Дефолтная дата начала
-            end_date="2024-06-20",    # Дефолтная дата окончания
             interests=["museums", "parks"],  # Дефолтные интересы
             origin_country="Spain",  # Дефолтная страна
-            trip_preferences="General family trip to Madrid"  # Дефолтные предпочтения
+            special_needs=[]  # Дефолтные потребности
         )
         
         # Сохраняем в Supabase
@@ -680,16 +677,21 @@ Empecemos con la primera pregunta:
             else:
                 request_type = "accommodation"
             
+            # Получаем данные из собранной информации или используем дефолтные значения
+            budget_level = getattr(profile, 'budget_level', 'medium') or 'medium'
+            start_date = getattr(profile, 'start_date', '2024-12-01') or '2024-12-01'
+            end_date = getattr(profile, 'end_date', '2024-12-05') or '2024-12-05'
+            
             profile.save_travel_request(request_type, {
                 "query": query,
                 "personalized_response": response,
                 "preferences": {
-                    "budget_level": profile.budget_level,
+                    "budget_level": budget_level,
                     "interests": profile.interests,
                     "family_size": profile.get_family_size(),
                     "age_group": profile.get_age_group()
                 }
-            }, trip_preferences)
+            }, trip_preferences, budget_level, start_date, end_date)
             
         except Exception as e:
             print(f"⚠️ Не удалось сохранить запрос: {e}")
@@ -735,12 +737,12 @@ Empecemos con la primera pregunta:
                 "profile": {
                     "kids_ages": profile.kids_ages,
                     "adults_count": profile.adults_count,
-                    "budget_level": profile.budget_level,
+                    "budget_level": getattr(profile, 'budget_level', 'medium') or 'medium',
                     "interests": profile.interests,
                     "special_needs": profile.special_needs,
                     "language_preference": profile.language_preference,
-                    "start_date": profile.start_date,
-                    "end_date": profile.end_date
+                    "start_date": getattr(profile, 'start_date', '2024-12-01') or '2024-12-01',
+                    "end_date": getattr(profile, 'end_date', '2024-12-05') or '2024-12-05'
                 },
                 "query_analysis": query_analysis,
                 "needs_hotels": query_analysis.get("needs_hotels", False),
@@ -943,7 +945,7 @@ Ahora necesito saber:
 (Por ejemplo: "Mi hijo tiene autismo" o "Necesitamos silla de ruedas" o "No, todo normal")"""
             
             elif self.current_question_step == "special_needs" and "special_needs" in info_data:
-                # Получили всю информацию, создаем профиль
+                # Получили всю информацию (включая пустой массив для special_needs), создаем профиль
                 return self._create_profile_from_collected_info(user_id)
             
             else:
@@ -975,22 +977,16 @@ Ahora necesito saber:
                 "family_id": user_id,
                 "kids_ages": self.collected_profile_data.get("kids_ages", []),
                 "adults_count": self.collected_profile_data.get("adults_count", 2),
-                "budget_level": self.collected_profile_data.get("budget_level", "medium"),
-                "start_date": start_date,
-                "end_date": end_date,
                 "interests": self.collected_profile_data.get("interests", []),
                 "origin_country": self.collected_profile_data.get("origin_country", ""),
                 "special_needs": self.collected_profile_data.get("special_needs", [])
             }
             
-            # Создаем профиль
+            # Создаем профиль семьи (без данных поездки)
             profile = FamilyProfileSupabase(
                 family_id=profile_data["family_id"],
                 kids_ages=profile_data["kids_ages"],
                 adults_count=profile_data["adults_count"],
-                budget_level=profile_data["budget_level"],
-                start_date=profile_data["start_date"],
-                end_date=profile_data["end_date"],
                 interests=profile_data["interests"],
                 origin_country=profile_data["origin_country"],
                 special_needs=profile_data["special_needs"]
@@ -1000,6 +996,19 @@ Ahora necesito saber:
             result = profile.save_to_supabase()
             
             if result:
+                # Создаем travel_request с данными поездки
+                budget_level = self.collected_profile_data.get("budget_level", "medium")
+                
+                # Создаем travel_request
+                travel_request_id = profile.save_travel_request(
+                    request_type="accommodation",
+                    request_data={"preferences": {}},
+                    trip_preferences="",
+                    budget_level=budget_level,
+                    start_date=start_date,
+                    end_date=end_date
+                )
+                
                 # Сбрасываем состояние после успешного создания профиля
                 self.collected_profile_data = {}
                 self.current_question_step = "kids_ages"
@@ -1009,7 +1018,8 @@ Ahora necesito saber:
 📋 **Resumen de tu familia:**
 • Niños: {len(profile_data['kids_ages'])} de edades {profile_data['kids_ages']}
 • Adultos: {profile_data['adults_count']}
-• Presupuesto: {profile_data['budget_level']}
+• Presupuesto: {budget_level}
+• Fechas: {start_date} a {end_date}
 • Intereses: {', '.join(profile_data['interests']) if profile_data['interests'] else 'No especificados'}
 • País: {profile_data['origin_country'] or 'No especificado'}
 
