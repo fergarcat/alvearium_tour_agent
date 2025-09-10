@@ -1,6 +1,6 @@
 from pdf_loader import download_pdfs, load_all_pdfs
 from embedder import split_text, generate_embeddings
-from vector_store import create_or_load_vector_db, search
+from vector import create_or_load_vector_db, search
 
 # descargar y cargar PDFs
 pdf_paths = download_pdfs()
