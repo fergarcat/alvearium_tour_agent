@@ -36,7 +36,7 @@ class ActivitiesAgent:
             temperature=0.3
         )
         
-        self.activities_database = self._initialize_activities_database()
+        # Удалена мок база данных - используем только API
         
         # Create parser for structured output
         self.output_parser = PydanticOutputParser(pydantic_object=ActivitiesResponse)
@@ -66,36 +66,7 @@ class ActivitiesAgent:
         
         print("✅ ActivitiesAgent инициализирован с API функциональностью")
     
-    def _initialize_activities_database(self) -> Dict[str, List[Dict]]:
-        """Initialize activities database"""
-        return {
-            "museums": [
-                {
-                    "name": "Museo del Prado",
-                    "age_range": [6, 99],
-                    "interests": ["arte", "cultura", "historia"],
-                    "duration": 120,
-                    "indoor": True,
-                    "educational_value": "high",
-                    "crowd_level": "high",
-                    "best_time": "morning",
-                    "price_range": "medium"
-                }
-            ],
-            "parks": [
-                {
-                    "name": "Parque del Retiro",
-                    "age_range": [0, 99],
-                    "interests": ["naturaleza", "deporte", "relajacion"],
-                    "duration": 180,
-                    "indoor": False,
-                    "educational_value": "medium",
-                    "crowd_level": "medium",
-                    "best_time": "morning",
-                    "price_range": "free"
-                }
-            ]
-        }
+    # Удален метод _initialize_activities_database - используем только API
     
     def _initialize_api_services(self) -> Dict[str, Any]:
         """Initialize API services"""
@@ -234,7 +205,7 @@ class ActivitiesAgent:
                 ❌ Использовать fallback данные
                 ❌ Игнорировать возраст детей в запросах
                 
-                НАЧНИ С: search_places_api("{personalized_query}", "tourist_attraction")
+                НАЧНИ С: search_places_api("{personalized_query}", "amusement_park|museum|park|zoo")
                 """
                 
                 # Добавляем флаг принуждения
@@ -259,19 +230,19 @@ class ActivitiesAgent:
             travel_dates = context.get('travel_dates', '2024-01-15')
             input_query = context.get('input', 'actividades para niños')
             
-            # Создаем персонализированный запрос с учетом возраста детей
+            # Создаем простой запрос для Google Places API
             if kids_ages:
-                age_info = f" para niños de {min(kids_ages)}-{max(kids_ages)} años"
-                personalized_query = f"{input_query}{age_info}"
+                # Упрощаем запрос для лучшего понимания API
+                personalized_query = f"actividades niños Madrid {min(kids_ages)} {max(kids_ages)} años"
             else:
-                personalized_query = input_query
+                personalized_query = "actividades niños Madrid"
             
             print(f"👶 Персонализированный запрос: {personalized_query}")
             
             # Принудительно вызываем Google Places API
             if self.api_services["google_places"]:
                 print("🔍 Принудительный вызов search_places_api...")
-                places_result = self._search_places_api(personalized_query, "tourist_attraction")
+                places_result = self._search_places_api(personalized_query, "amusement_park|museum|park|zoo")
                 print(f"📊 Результат search_places_api: {places_result[:200]}...")
                 
                 # Добавляем результат в контекст
@@ -292,7 +263,10 @@ class ActivitiesAgent:
             if self.api_services["events"]:
                 print("🎪 Принудительный вызов search_events_api...")
                 # Создаем запрос с учетом возраста детей
-                events_query = f"talleres niños {age_info}" if kids_ages else "talleres niños"
+                if kids_ages:
+                    events_query = f"talleres niños Madrid {min(kids_ages)} {max(kids_ages)} años"
+                else:
+                    events_query = "talleres niños Madrid"
                 events_result = self._search_events_api(events_query, weather_date)
                 print(f"📊 Результат search_events_api: {events_result[:200]}...")
                 
@@ -470,11 +444,26 @@ Consulta del usuario: {input}
                         activities_text = output
                         print(f"✅ ActivitiesAgent: Используем текстовый вывод")
                 
-                # Fallback: создаем структурированные данные программно
+                # Если нет структурированных данных, создаем минимальные данные
                 if not structured_data:
-                    print(f"✅ ActivitiesAgent: Создаем структурированные данные программно")
-                    structured_data = self._create_fallback_structured_data(context)
-                    activities_text = self._format_activities_text(structured_data)
+                    print(f"⚠️ ActivitiesAgent: Нет структурированных данных, создаем минимальные данные")
+                    activities_text = "No se pudieron obtener actividades. Verifique la conexión a las API."
+                    # Создаем минимальные структурированные данные
+                    from app.models.activities_models import BudgetEstimate
+                    structured_data = ActivitiesResponse(
+                        activities=[],
+                        total_activities=0,
+                        recommended_duration="1 día",
+                        budget_estimate=BudgetEstimate(
+                            range="€0-50", 
+                            per_person="€10-25", 
+                            notes="API no disponible"
+                        ),
+                        age_groups=self._get_age_groups(context.get('kids_ages', [])),
+                        interests_covered=[],
+                        weather_considerations=["Verificar clima antes de salir"],
+                        practical_tips=["Verificar conexión a las API"]
+                    )
                 
                 # Создаем результат с Pydantic валидацией
                 agent_result = ActivitiesAgentResult(
@@ -496,9 +485,23 @@ Consulta del usuario: {input}
 
             except Exception as agent_error:
                 print(f"⚠️ ActivitiesAgent: Ошибка агента: {agent_error}")
-                # Fallback к простому ответу
-                activities_text = self._generate_simple_activities_plan(context)
-                structured_data = self._parse_activities_response(activities_text, context)
+                # Ошибка - создаем минимальные данные
+                activities_text = f"Error al procesar la solicitud: {str(agent_error)}. Verifique la conexión a las API."
+                from app.models.activities_models import BudgetEstimate
+                structured_data = ActivitiesResponse(
+                    activities=[],
+                    total_activities=0,
+                    recommended_duration="1 día",
+                    budget_estimate=BudgetEstimate(
+                        range="€0-50", 
+                        per_person="€10-25", 
+                        notes="Error en procesamiento"
+                    ),
+                    age_groups=self._get_age_groups(context.get('kids_ages', [])),
+                    interests_covered=[],
+                    weather_considerations=["Verificar clima antes de salir"],
+                    practical_tips=["Verificar conexión a las API"]
+                )
                 
                 return {
                     "agent_name": "activities",
@@ -517,13 +520,28 @@ Consulta del usuario: {input}
             
         except Exception as e:
             print(f"❌ ActivitiesAgent: Ошибка обработки: {e}")
+            from app.models.activities_models import BudgetEstimate
+            structured_data = ActivitiesResponse(
+                activities=[],
+                total_activities=0,
+                recommended_duration="1 día",
+                budget_estimate=BudgetEstimate(
+                    range="€0-50", 
+                    per_person="€10-25", 
+                    notes="Error crítico"
+                ),
+                age_groups=self._get_age_groups(context.get('kids_ages', [])),
+                interests_covered=[],
+                weather_considerations=["Verificar clima antes de salir"],
+                practical_tips=["Verificar conexión a las API"]
+            )
             return {
                 "agent_name": "activities",
                 "status": "error",
                 "query": query,
                 "family_context": context,
                 "activities_text": f"Lo siento, hubo un error al crear tu plan de actividades: {str(e)}",
-                "structured_data": {"activities": [], "error": str(e)},
+                "structured_data": structured_data,
                 "metadata": {
                     "processing_time": "real_time",
                     "confidence": 0.0,
@@ -587,9 +605,9 @@ Consulta del usuario: {input}
             if current_activity:
                 activities.append(current_activity)
             
-            # Если не удалось извлечь активности, создаем базовые
+            # Если не удалось извлечь активности, возвращаем пустой список
             if not activities:
-                activities = self._generate_default_activities(kids_ages, budget_level, interests)
+                activities = []
             
             return {
                 "activities": activities,
@@ -670,33 +688,7 @@ Consulta del usuario: {input}
         
         return matches / len(interests)
     
-    def _generate_default_activities(self, kids_ages: List[int], budget_level: str, interests: List[str]) -> List[Dict]:
-        """Генерирует базовые активности по умолчанию"""
-        activities = [
-            {
-                "name": "Museo del Prado",
-                "type": "museum",
-                "description": "Museo de arte clásico con actividades familiares",
-                "schedule": "10:00-20:00",
-                "location": "Madrid Centro",
-                "price_range": "medium",
-                "age_suitability": {"suitable": True, "age_range": "5+", "notes": "Ideal para niños mayores"},
-                "interests_match": 0.8,
-                "accessibility": "standard"
-            },
-            {
-                "name": "Parque del Retiro",
-                "type": "park",
-                "description": "Parque histórico con palacio de cristal y estanque",
-                "schedule": "6:00-22:00",
-                "location": "Madrid Centro",
-                "price_range": "free",
-                "age_suitability": {"suitable": True, "age_range": "all", "notes": "Perfecto para todas las edades"},
-                "interests_match": 0.9,
-                "accessibility": "standard"
-            }
-        ]
-        return activities
+    # Удален метод _generate_default_activities - используем только API данные
     
     def _calculate_recommended_duration(self, activities: List[Dict]) -> str:
         """Рассчитывает рекомендуемую продолжительность"""
@@ -792,54 +784,11 @@ Consulta del usuario: {input}
         
         return text
     
-    def _create_fallback_structured_data(self, context: Dict[str, Any]) -> ActivitiesResponse:
-        """Создает структурированные данные программно как fallback"""
-        try:
-            # Используем нашу функцию для создания структурированных данных
-            structured_dict = create_activities_plan(
-                query=context.get('input', ''),
-                kids_ages=context.get('kids_ages', []),
-                adults_count=context.get('adults_count', 2),
-                interests=context.get('interests', []),
-                budget_level=context.get('budget_level', 'medium'),
-                special_needs=context.get('special_needs', []),
-                origin_country=context.get('origin_country', 'Spain'),
-                travel_dates=context.get('travel_dates', '')
-            )
-            
-            return ActivitiesResponse(**structured_dict)
-        except Exception as e:
-            print(f"⚠️ Ошибка создания fallback данных: {e}")
-            # Возвращаем минимальные данные
-            from app.models.activities_models import BudgetEstimate
-            
-            return ActivitiesResponse(
-                activities=[],
-                total_activities=0,
-                recommended_duration="1 día",
-                budget_estimate=BudgetEstimate(
-                    range="€0-50", 
-                    per_person="€10-25", 
-                    notes="Presupuesto básico"
-                ),
-                age_groups=["adults_only"],
-                interests_covered=[],
-                weather_considerations=["Verificar clima antes de salir"],
-                practical_tips=["Planificar con antelación"]
-            )
+    # Удален метод _create_fallback_structured_data - используем только API данные
     
     def _create_tools(self) -> List[Tool]:
         """Создает инструменты для агента с приоритетами"""
         return [
-            Tool(
-                name="search_activities",
-                description="""[ПРИОРИТЕТ 2] Поиск активностей по критериям в локальной базе.
-                Используй ТОЛЬКО если API недоступны.
-                Входные параметры: criteria (JSON с критериями поиска)
-                Формат: search_activities('{"age": 8, "interests": ["arte"]}')
-                Возвращает: список подходящих активностей""",
-                func=self._search_activities
-            ),
             Tool(
                 name="analyze_age_compatibility",
                 description="""[ПРИОРИТЕТ 2] Анализ совместимости активностей с возрастными группами.
@@ -925,24 +874,7 @@ Pregunta del usuario: {input}
             input_variables=["input", "kids_ages", "adults_count", "interests", "origin_country", "special_needs", "budget_level", "travel_dates", "tools", "tool_names", "agent_scratchpad"]
         )
     
-    def _search_activities(self, criteria: str) -> str:
-        """Поиск активностей по критериям"""
-        try:
-            criteria_dict = json.loads(criteria) if criteria.startswith('{') else {"age": 8, "interests": ["arte"]}
-            matching_activities = []
-            
-            for category, activities in self.activities_database.items():
-                for activity in activities:
-                    if self._matches_criteria(activity, criteria_dict):
-                        matching_activities.append(activity)
-            
-            return json.dumps({
-                "found_activities": len(matching_activities),
-                "activities": matching_activities[:10]
-            }, ensure_ascii=False)
-            
-        except Exception as e:
-            return f"Error en búsqueda: {str(e)}"
+    # Удален метод _search_activities - используем только API поиск
     
     def _analyze_age_compatibility(self, kids_ages: str) -> str:
         """Анализ совместимости с возрастными группами"""
@@ -996,56 +928,9 @@ Pregunta del usuario: {input}
         except Exception as e:
             return f"Error en optimización: {str(e)}"
     
-    def _matches_criteria(self, activity: Dict, criteria: Dict) -> bool:
-        """Проверяет соответствие активности критериям"""
-        if "age" in criteria:
-            age = criteria["age"]
-            if not (activity["age_range"][0] <= age <= activity["age_range"][1]):
-                return False
-        
-        if "interests" in criteria:
-            interests = criteria["interests"]
-            if not any(interest in activity["interests"] for interest in interests):
-                return False
-        
-        return True
+    # Удален метод _matches_criteria - используем только API фильтрацию
     
-    def _generate_simple_activities_plan(self, context: Dict) -> str:
-        """Генерирует простой план активностей как fallback"""
-        kids_ages = context.get('kids_ages', [])
-        interests = context.get('interests', [])
-        
-        plan = f"""🎯 **Plan de Actividades para Familia**
-
-**Edades de los niños:** {kids_ages}
-**Intereses:** {', '.join(interests)}
-
-### Actividades Recomendadas:
-
-1. **Museo del Prado** - Ideal para todas las edades
-   - Horario: 10:00-12:00
-   - Actividades familiares disponibles
-
-2. **Parque del Retiro** - Perfecto para niños
-   - Horario: 14:00-16:00
-   - Palacio de Cristal y Estanque Grande
-
-3. **Museo Nacional de Ciencias Naturales**
-   - Horario: 10:00-12:30
-   - Exposiciones interactivas
-
-4. **Planetario de Madrid**
-   - Horario: 16:00-18:00
-   - Proyecciones sobre el espacio
-
-### Consideraciones:
-- Llevar ropa de abrigo en diciembre
-- Reservar actividades con antelación
-- Combinar actividades educativas y recreativas
-
-¿Te gustaría más detalles sobre alguna actividad específica?"""
-        
-        return plan
+    # Удален метод _generate_simple_activities_plan - используем только API данные
     
     # API методы
     def _search_places_api(self, query: str, place_type: str = None) -> str:
@@ -1063,7 +948,7 @@ Pregunta del usuario: {input}
             }
             
             if place_type:
-                params["type"] = place_type
+                params["types"] = place_type
             
             response = requests.get(
                 f"{self.api_services['google_places']['base_url']}/textsearch/json",
@@ -1071,9 +956,14 @@ Pregunta del usuario: {input}
                 timeout=10
             )
             
+            print(f"🔍 Google Places API URL: {response.url}")
+            print(f"📊 Google Places API Status: {response.status_code}")
+            
             if response.status_code == 200:
                 data = response.json()
                 places = data.get("results", [])
+                print(f"📊 Google Places API Response: {data}")
+                print(f"📊 Found places: {len(places)}")
                 
                 # Форматируем результаты
                 formatted_places = []
@@ -1155,72 +1045,150 @@ Pregunta del usuario: {input}
             })
     
     def _check_weather_api(self, date: str) -> str:
-        """Проверка погоды"""
+        """Проверка погоды через OpenWeatherMap API"""
         try:
             if not self.api_services["weather"]:
                 return json.dumps({"status": "error", "error": "Weather API не настроен"})
             
-            # Для демонстрации используем моковые данные
-            # В реальности здесь был бы вызов OpenWeatherMap API
-            mock_weather = {
-                "date": date,
-                "temperature": "15°C",
-                "condition": "Parcialmente nublado",
-                "humidity": "65%",
-                "wind": "10 km/h",
-                "recommendation": "Ideal para actividades al aire libre"
+            # Реальный вызов OpenWeatherMap API
+            api_key = self.api_services["weather"]["api_key"]
+            base_url = self.api_services["weather"]["base_url"]
+            
+            # Madrid coordinates
+            lat = "40.4168"
+            lon = "-3.7038"
+            
+            params = {
+                "lat": lat,
+                "lon": lon,
+                "appid": api_key,
+                "units": "metric",
+                "lang": "es"
             }
             
-            return json.dumps({
-                "status": "success",
-                "weather": mock_weather
-            })
+            response = requests.get(f"{base_url}/weather", params=params, timeout=10)
             
+            if response.status_code == 200:
+                data = response.json()
+                weather_data = {
+                    "date": date,
+                    "temperature": f"{data['main']['temp']:.1f}°C",
+                    "condition": data['weather'][0]['description'].title(),
+                    "humidity": f"{data['main']['humidity']}%",
+                    "wind": f"{data['wind']['speed']} m/s",
+                    "recommendation": self._get_weather_recommendation(data['main']['temp'], data['weather'][0]['main'])
+                }
+                
+                return json.dumps({
+                    "status": "success",
+                    "weather": weather_data
+                })
+            else:
+                return json.dumps({
+                    "status": "error",
+                    "error": f"Weather API error: {response.status_code}"
+                })
+                
         except Exception as e:
             return json.dumps({
                 "status": "error",
                 "error": str(e)
             })
     
+    def _get_weather_recommendation(self, temp: float, condition: str) -> str:
+        """Генерирует рекомендацию на основе погоды"""
+        if temp < 10:
+            return "Llevar ropa de abrigo, ideal para actividades en interiores"
+        elif temp > 25:
+            return "Día caluroso, ideal para actividades al aire libre con protección solar"
+        elif condition in ["Rain", "Drizzle"]:
+            return "Lluvia prevista, recomendadas actividades en interiores"
+        else:
+            return "Ideal para actividades al aire libre"
+    
     def _search_events_api(self, query: str, date: str = None) -> str:
-        """Поиск событий и мероприятий"""
+        """Поиск событий через Eventbrite API"""
         try:
             if not self.api_services["events"]:
                 return json.dumps({"status": "error", "error": "Events API не настроен"})
             
-            # Для демонстрации используем моковые данные
-            # В реальности здесь был бы вызов Eventbrite API
-            mock_events = [
-                {
-                    "name": "Taller de Arte para Niños",
-                    "date": date or "2024-01-15",
-                    "time": "10:00-12:00",
-                    "location": "Museo del Prado",
-                    "price": "€15",
-                    "age_range": "5-12 años"
-                },
-                {
-                    "name": "Visita Guiada Familiar",
-                    "date": date or "2024-01-15",
-                    "time": "16:00-18:00",
-                    "location": "Parque del Retiro",
-                    "price": "Gratis",
-                    "age_range": "Todas las edades"
-                }
-            ]
+            # Реальный вызов Eventbrite API
+            api_key = self.api_services["events"]["api_key"]
+            base_url = self.api_services["events"]["base_url"]
             
-            return json.dumps({
-                "status": "success",
-                "events": mock_events,
-                "query": query,
-                "date": date
-            })
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
             
+            # Поиск событий в Мадриде
+            params = {
+                "q": query,
+                "location.address": "Madrid, Spain",
+                "location.within": "10km",
+                "sort_by": "date",
+                "status": "live"
+            }
+            
+            if date:
+                params["start_date.range_start"] = date
+                params["start_date.range_end"] = date
+            
+            response = requests.get(f"{base_url}/events/search", headers=headers, params=params, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                events = []
+                
+                for event in data.get("events", [])[:5]:  # Ограничиваем до 5 событий
+                    event_data = {
+                        "name": event.get("name", {}).get("text", ""),
+                        "date": event.get("start", {}).get("local", "").split("T")[0] if event.get("start", {}).get("local") else date or "",
+                        "time": event.get("start", {}).get("local", "").split("T")[1][:5] if event.get("start", {}).get("local") else "",
+                        "location": event.get("venue", {}).get("name", "Madrid"),
+                        "price": self._get_event_price(event),
+                        "age_range": self._get_event_age_range(event, query)
+                    }
+                    events.append(event_data)
+                
+                return json.dumps({
+                    "status": "success",
+                    "events": events,
+                    "query": query,
+                    "date": date
+                })
+            else:
+                return json.dumps({
+                    "status": "error",
+                    "error": f"Events API error: {response.status_code}"
+                })
+                
         except Exception as e:
             return json.dumps({
                 "status": "error",
                 "error": str(e)
             })
+    
+    def _get_event_price(self, event: dict) -> str:
+        """Извлекает цену события"""
+        try:
+            ticket_classes = event.get("ticket_availability", {}).get("ticket_classes", [])
+            if ticket_classes:
+                price = ticket_classes[0].get("cost", {}).get("display", "Gratis")
+                return price
+            return "Gratis"
+        except:
+            return "Gratis"
+    
+    def _get_event_age_range(self, event: dict, query: str) -> str:
+        """Определяет возрастной диапазон события"""
+        name = event.get("name", {}).get("text", "").lower()
+        if "niños" in name or "niños" in query.lower():
+            return "5-12 años"
+        elif "familiar" in name or "familiar" in query.lower():
+            return "Todas las edades"
+        else:
+            return "Todas las edades"
 
 def create_activities_agent() -> ActivitiesAgent:
     """Создает экземпляр ActivitiesAgent для RouterAgent"""
