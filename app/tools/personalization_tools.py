@@ -337,8 +337,8 @@ def validate_family_profile_tool(profile_data: str) -> str:
         
         # Проверяем валидность данных
         kids_ages = profile.get("kids_ages", [])
-        if not all(0 < age < 18 for age in kids_ages):
-            return "Edades de niños inválidas (deben estar entre 1 y 17 años)"
+        if not all(0 <= age < 18 for age in kids_ages):
+            return "Edades de niños inválidas (deben estar entre 0 y 17 años)"
         
         adults_count = profile.get("adults_count", 0)
         if adults_count < 1 or adults_count > 10:
@@ -750,10 +750,12 @@ def sequential_question_tool(user_response: str, family_id: str, current_step: s
                 current_question = "¿Tienes alguna preferencia especial para el viaje?"
             else:
                 current_question = "¿Cuáles son las edades de tus hijos?"
-            
+                current_step = "kids_ages"  # Устанавливаем по умолчанию
+        
             collected_info = "{}"
             
             print(f"🔍 Контекст: шаг={current_step or 'unknown'}, вопрос={current_question}")
+            print(f"🔍 Ответ пользователя: '{user_response}'")
             
             llm_result = llm_interpretation_tool(user_response, current_question, collected_info)
             info_data = json.loads(llm_result)
@@ -762,8 +764,35 @@ def sequential_question_tool(user_response: str, family_id: str, current_step: s
             if "message" not in info_data and any(key in info_data for key in ["kids_ages", "adults_count", "budget_level", "travel_dates", "interests", "origin_country", "special_needs"]):
                 print(f"✅ LLM успешно извлек информацию: {info_data}")
             else:
-                print(f"⚠️ LLM не смог извлечь информацию, пробуем regex: {info_data}")
-                raise Exception("LLM не смог извлечь информацию")
+                print(f"⚠️ LLM не смог извлечь информацию, пробуем умную логику контекста: {info_data}")
+                
+                # Умная обработка контекста (как в старом коде)
+                import re
+                numbers = re.findall(r'\d+', user_response.lower())
+                if numbers:
+                    print(f"🔍 Найдены числа: {numbers}")
+                    
+                    # Анализируем контекст на основе вопроса и ответа
+                    if current_step == "kids_ages" or any(word in user_response.lower() for word in ["niño", "niños", "hijo", "hijos", "hija", "hijas", "año", "años", "edad", "edades"]):
+                        # Контекст детей - берем все числа как возрасты
+                        info_data = {"kids_ages": [int(n) for n in numbers]}
+                        print(f"🔢 Интерпретировано как возрасты детей: {info_data['kids_ages']}")
+                    elif current_step == "adults_count" or any(word in user_response.lower() for word in ["adulto", "adultos", "persona", "personas", "somos", "viajamos"]):
+                        # Контекст взрослых - берем первое число
+                        info_data = {"adults_count": int(numbers[0])}
+                        print(f"🔢 Интерпретировано как количество взрослых: {info_data['adults_count']}")
+                    elif current_step == "budget_level" or any(word in user_response.lower() for word in ["presupuesto", "dinero", "euros", "euro", "pesos", "dólares"]):
+                        # Контекст бюджета - не извлекаем числа
+                        raise Exception("LLM не смог извлечь информацию")
+                    elif current_step == "travel_dates" or any(word in user_response.lower() for word in ["octubre", "noviembre", "diciembre", "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre"]):
+                        # Контекст дат - не извлекаем числа
+                        raise Exception("LLM не смог извлечь информацию")
+                    else:
+                        # Неопределенный контекст - по умолчанию считаем возрастом ребенка
+                        info_data = {"kids_ages": [int(n) for n in numbers]}
+                        print(f"🔢 Интерпретировано как возрасты детей (по умолчанию): {info_data['kids_ages']}")
+                else:
+                    raise Exception("LLM не смог извлечь информацию")
                 
         except Exception as e:
             print(f"❌ LLM недоступен или не смог обработать: {e}")

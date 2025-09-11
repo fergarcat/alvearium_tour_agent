@@ -35,12 +35,14 @@ class FrontendSimulator:
         print("=" * 50)
         
         try:
-            from app.agents.personalization_agent import PersonalizedTripPlanner
+            from agents.personalization_agent import PersonalizedTripPlanner
             self.planner = PersonalizedTripPlanner()
             print("✅ Система инициализирована успешно")
             return True
         except Exception as e:
             print(f"❌ Ошибка инициализации: {e}")
+            import traceback
+            print(f"📋 Детали ошибки: {traceback.format_exc()}")
             return False
     
     def display_welcome(self):
@@ -50,12 +52,16 @@ class FrontendSimulator:
         print("=" * 60)
         print("Этот тест имитирует взаимодействие с фронтендом")
         print("Вы можете вводить сообщения как настоящий пользователь")
+        print("\n🏗️ НОВАЯ ReAct АРХИТЕКТУРА:")
+        print("  PersonalizationReactAgent → RouterAgent → Специализированные агенты")
+        print("  RouterAgent использует ReAct паттерн (Reasoning → Acting → Observing)")
+        print("  Инструменты: AnalyzeQueryTool, CallActivitiesAgentTool, CallRestaurantsAgentTool")
         print("\n📋 Доступные команды:")
         print("  /help     - Показать справку")
         print("  /profile  - Показать профиль семьи")
         print("  /data     - Показать детальную передачу данных")
         print("  /scenario - Запустить тестовый сценарий")
-        print("  /activities - Тестировать ActivitiesAgent")
+        print("  /activities - Тестировать ActivitiesAgent (ReAct)")
         print("  /stats    - Показать статистику сессии")
         print("  /exit     - Выход")
         print("\n💬 Начните диалог с ботом!")
@@ -73,70 +79,61 @@ class FrontendSimulator:
         self.session_data["messages"].append(message)
     
     def show_data_flow_info(self, user_input: str):
-        """Показывает информацию о передаче данных между агентами"""
+        """Показывает информацию о передаче данных между агентами в новой ReAct архитектуре"""
         try:
             print("\n" + "=" * 60)
-            print("🔄 АНАЛИЗ ПЕРЕДАЧИ ДАННЫХ МЕЖДУ АГЕНТАМИ")
+            print("🔄 АНАЛИЗ ПЕРЕДАЧИ ДАННЫХ МЕЖДУ АГЕНТАМИ (ReAct Architecture)")
             print("=" * 60)
             
             # Получаем профиль семьи
             profile = self.planner.personalization_agent.get_family_profile(self.current_family_id)
             
             if profile:
-                # Используем новую логику с полным профилем
-                routing_data = self.planner.personalization_agent.prepare_data_for_routing(user_input, self.current_family_id)
-                
-                # Анализируем запрос
-                query_analysis = routing_data.get('query_analysis', {})
-                print(f"   • Query analysis: {query_analysis}")
-                
-                # Показываем, какие агенты будут задействованы
-                needs_agents = []
-                if query_analysis.get("needs_hotels", False):
-                    needs_agents.append("hotels")
-                if query_analysis.get("needs_restaurants", False):
-                    needs_agents.append("restaurants")
-                if query_analysis.get("needs_activities", False):
-                    needs_agents.append("activities")
-                if query_analysis.get("needs_transport", False):
-                    needs_agents.append("transport")
-                
-                if needs_agents:
-                    print(f"   • Needs multi-agent: True")
-                    print(f"   • Agents needed: {', '.join(needs_agents)}")
-                    print(f"   • Query type: {query_analysis.get('query_type', 'general')}")
-                    
-                    # Показываем детали для ActivitiesAgent
-                    if "activities" in needs_agents:
-                        print("\n🎯 RouterAgent ПЕРЕДАЕТ ActivitiesAgent:")
-                        print(f"   • Query: {user_input}")
-                        print(f"   • Family ID: {self.current_family_id}")
-                        print(f"   • Profile data:")
-                        profile_data = routing_data.get('profile', {})
-                        print(f"     - kids_ages: {profile_data.get('kids_ages', [])}")
-                        print(f"     - adults_count: {profile_data.get('adults_count', 0)}")
-                        print(f"     - interests: {profile_data.get('interests', [])}")
-                        print(f"     - origin_country: {profile_data.get('origin_country', '')}")
-                        print(f"     - special_needs: {profile_data.get('special_needs', [])}")
-                        print(f"     - budget_level: {profile_data.get('budget_level', 'medium')}")
-                        print(f"     - travel_dates: {profile_data.get('start_date', '')} - {profile_data.get('end_date', '')}")
-                        print(f"   • Context for LLM:")
-                        print(f"     - kids_ages: {profile_data.get('kids_ages', [])}")
-                        print(f"     - adults_count: {profile_data.get('adults_count', 0)}")
-                        print(f"     - interests: {profile_data.get('interests', [])}")
-                        print(f"     - origin_country: {profile_data.get('origin_country', '')}")
-                        print(f"     - special_needs: {profile_data.get('special_needs', [])}")
-                        print(f"     - budget_level: {profile_data.get('budget_level', 'medium')}")
-                        print(f"     - travel_dates: {profile_data.get('start_date', '')} - {profile_data.get('end_date', '')}")
-                else:
-                    print(f"   • Needs multi-agent: False")
-                    print(f"   • Will use simple response")
-            else:
-                print("📤 PersonalizationReactAgent ПЕРЕДАЕТ RouterAgent:")
+                print("📤 PersonalizationReactAgent → RouterAgent:")
                 print(f"   • Query: {user_input}")
                 print(f"   • Family ID: {self.current_family_id}")
-                print(f"   • Profile: НЕ НАЙДЕН (будет создан новый)")
-                print(f"   • Will use sequential data collection")
+                print(f"   • Profile found: ✅")
+                
+                # Показываем данные профиля
+                print(f"   • Profile data:")
+                print(f"     - kids_ages: {profile.kids_ages}")
+                print(f"     - adults_count: {profile.adults_count}")
+                print(f"     - interests: {profile.interests}")
+                print(f"     - origin_country: {profile.origin_country}")
+                print(f"     - special_needs: {getattr(profile, 'special_needs', [])}")
+                print(f"     - budget_level: {getattr(profile, 'budget_level', 'medium')}")
+                
+                print("\n🧠 RouterAgent ReAct Workflow:")
+                print("   1. Reasoning: AnalyzeQueryTool анализирует запрос")
+                print("   2. Acting: Вызывает соответствующие инструменты:")
+                print("      - CallActivitiesAgentTool (если нужны активности)")
+                print("      - CallRestaurantsAgentTool (если нужны рестораны)")
+                print("   3. Observing: Оценивает результаты и принимает решения")
+                print("   4. Повторяет цикл до получения полного ответа")
+                
+                # Анализируем, какие инструменты будут использованы
+                query_lower = user_input.lower()
+                tools_to_use = []
+                
+                if any(word in query_lower for word in ['actividad', 'museo', 'parque', 'diversión', 'entretenimiento', 'taller']):
+                    tools_to_use.append("CallActivitiesAgentTool")
+                if any(word in query_lower for word in ['comer', 'restaurante', 'cena', 'almuerzo', 'comida', 'bar', 'café']):
+                    tools_to_use.append("CallRestaurantsAgentTool")
+                
+                if tools_to_use:
+                    print(f"\n🔧 Инструменты, которые будут использованы:")
+                    for tool in tools_to_use:
+                        print(f"   • {tool}")
+                else:
+                    print(f"\n⚠️ Возможно, будет использован простой ответ без специализированных агентов")
+                
+            else:
+                print("📤 PersonalizationReactAgent (Sequential Mode):")
+                print(f"   • Query: {user_input}")
+                print(f"   • Family ID: {self.current_family_id}")
+                print(f"   • Profile: НЕ НАЙДЕН")
+                print(f"   • Mode: Sequential data collection")
+                print(f"   • RouterAgent: НЕ ЗАДЕЙСТВОВАН")
             
             print("=" * 60)
             
@@ -145,35 +142,31 @@ class FrontendSimulator:
             print("=" * 60)
     
     def show_router_response_info(self, response: str):
-        """Показывает информацию о том, что получил RouterAgent"""
+        """Показывает информацию о том, что получил RouterAgent в новой ReAct архитектуре"""
         try:
             print("\n" + "=" * 60)
-            print("📥 RouterAgent ОТВЕТИЛ ПОЛЬЗОВАТЕЛЮ:")
+            print("📥 RouterAgent ReAct ОТВЕТИЛ ПОЛЬЗОВАТЕЛЮ:")
             print("=" * 60)
             
             # Анализируем ответ
-            if "RouterAgent" in response:
-                print("✅ RouterAgent обработал запрос")
-                print(f"   • Тип ответа: Multi-Agent")
+            if "RouterAgent" in response or "ReAct" in response:
+                print("✅ RouterAgent ReAct обработал запрос")
+                print(f"   • Архитектура: ReAct (Reasoning → Acting → Observing)")
                 print(f"   • Длина ответа: {len(response)} символов")
                 
-                # Проверяем, какие агенты были задействованы
-                agents_used = []
-                if "🏨" in response:
-                    agents_used.append("hotels")
-                if "🍽️" in response:
-                    agents_used.append("restaurants")
-                if "🎯" in response:
-                    agents_used.append("activities")
-                if "🚌" in response:
-                    agents_used.append("transport")
+                # Проверяем, какие инструменты были задействованы
+                tools_used = []
+                if "actividad" in response.lower() or "museo" in response.lower() or "parque" in response.lower():
+                    tools_used.append("CallActivitiesAgentTool")
+                if "comer" in response.lower() or "restaurante" in response.lower() or "cena" in response.lower():
+                    tools_used.append("CallRestaurantsAgentTool")
                 
-                if agents_used:
-                    print(f"   • Агенты использованы: {', '.join(agents_used)}")
+                if tools_used:
+                    print(f"   • Инструменты использованы: {', '.join(tools_used)}")
                     
-                    # Детальный анализ ActivitiesAgent
-                    if "activities" in agents_used:
-                        print("\n🎯 АНАЛИЗ ОТВЕТА ActivitiesAgent:")
+                    # Детальный анализ ActivitiesAgent через CallActivitiesAgentTool
+                    if "CallActivitiesAgentTool" in tools_used:
+                        print("\n🎯 АНАЛИЗ ОТВЕТА ActivitiesAgent (через CallActivitiesAgentTool):")
                         print(f"   • Содержит план активностей: {'Sí' if 'actividad' in response.lower() else 'No'}")
                         print(f"   • Содержит расписание: {'Sí' if 'horario' in response.lower() or 'día' in response.lower() else 'No'}")
                         print(f"   • Содержит музеи: {'Sí' if 'museo' in response.lower() else 'No'}")
@@ -207,14 +200,37 @@ class FrontendSimulator:
                             print(f"   • Данные профиля использованы: {', '.join(profile_usage)}")
                         else:
                             print(f"   • Данные профиля использованы: минимально")
+                            
+                        # Анализ ReAct цикла
+                        print(f"\n🔄 АНАЛИЗ ReAct ЦИКЛА:")
+                        if "Thought:" in response or "Action:" in response or "Observation:" in response:
+                            print(f"   • ReAct цикл обнаружен в ответе")
+                            thought_count = response.count("Thought:")
+                            action_count = response.count("Action:")
+                            observation_count = response.count("Observation:")
+                            print(f"   • Thoughts: {thought_count}")
+                            print(f"   • Actions: {action_count}")
+                            print(f"   • Observations: {observation_count}")
+                        else:
+                            print(f"   • ReAct цикл не отображается в финальном ответе (нормально)")
+                            
+                    # Детальный анализ RestaurantsAgent через CallRestaurantsAgentTool
+                    if "CallRestaurantsAgentTool" in tools_used:
+                        print("\n🍽️ АНАЛИЗ ОТВЕТА RestaurantsAgent (через CallRestaurantsAgentTool):")
+                        print(f"   • Содержит рестораны: {'Sí' if 'restaurante' in response.lower() else 'No'}")
+                        print(f"   • Содержит меню: {'Sí' if 'menú' in response.lower() or 'plato' in response.lower() else 'No'}")
+                        print(f"   • Содержит цены: {'Sí' if 'precio' in response.lower() or '€' in response else 'No'}")
+                        print(f"   • Содержит адреса: {'Sí' if 'dirección' in response.lower() or 'ubicación' in response.lower() else 'No'}")
+                        print(f"   • Содержит отзывы: {'Sí' if 'recomendado' in response.lower() or 'estrellas' in response.lower() else 'No'}")
+                        
                 else:
-                    print(f"   • Агенты использованы: простой ответ")
+                    print(f"   • Инструменты использованы: простой ответ (возможно, AnalyzeQueryTool определил, что специализированные агенты не нужны)")
                     
             else:
-                print("ℹ️ PersonalizationReactAgent обработал запрос")
+                print("ℹ️ PersonalizationReactAgent обработал запрос (Sequential Mode)")
                 print(f"   • Тип ответа: Simple/Sequential")
                 print(f"   • Длина ответа: {len(response)} символов")
-                print(f"   • RouterAgent не задействован")
+                print(f"   • RouterAgent ReAct не задействован")
             
             print("=" * 60)
             
@@ -347,6 +363,14 @@ class FrontendSimulator:
             # Шаг 5: Обработка запроса
             print(f"\n⚙️ ШАГ 5: Обработка запроса системой")
             print(f"   • Отправка в PersonalizedTripPlanner...")
+            
+            # Логируем начало ReAct цикла
+            if profile:
+                print(f"   🔄 ReAct RouterAgent: Начинаю цикл Reasoning → Acting → Observing")
+                print(f"   🧠 Reasoning: AnalyzeQueryTool анализирует запрос")
+                print(f"   ⚡ Acting: Будет вызван соответствующий инструмент")
+                print(f"   👁️ Observing: Результат будет оценен и принято решение")
+            
             response = self.planner.process_query(user_input, self.current_family_id)
             print(f"   ✅ Запрос обработан")
             
@@ -409,9 +433,15 @@ class FrontendSimulator:
 /profile    - Показать текущий профиль семьи
 /data       - Показать детальную передачу данных между агентами
 /scenario   - Запустить тестовый сценарий
-/activities - Тестировать ActivitiesAgent напрямую
+/activities - Тестировать ActivitiesAgent через ReAct архитектуру
 /stats      - Показать статистику сессии
 /exit       - Выход из программы
+
+🏗️ НОВАЯ ReAct АРХИТЕКТУРА:
+- PersonalizationReactAgent → RouterAgent → Специализированные агенты
+- RouterAgent использует ReAct паттерн (Reasoning → Acting → Observing)
+- Инструменты: AnalyzeQueryTool, CallActivitiesAgentTool, CallRestaurantsAgentTool
+- Более интеллектуальный анализ запросов и маршрутизация
 
 💡 СОВЕТЫ:
 - Начните с приветствия: "Hola"
@@ -420,15 +450,22 @@ class FrontendSimulator:
 - Тестируйте ActivitiesAgent: "¿Qué actividades puedo hacer con mis hijos?"
 - Используйте естественный язык для общения
 
-🎯 ТЕСТИРОВАНИЕ ActivitiesAgent:
+🎯 ТЕСТИРОВАНИЕ ActivitiesAgent (ReAct):
 - Команда /activities запустит автоматическое тестирование
-- Покажет детальную передачу данных между агентами
-- Проанализирует качество ответов ActivitiesAgent
+- Покажет ReAct workflow: PersonalizationReactAgent → RouterAgent → CallActivitiesAgentTool → ActivitiesAgent
+- Проанализирует качество ответов ActivitiesAgent через новую архитектуру
 - Включит 5 различных тестовых запросов
+- Покажет детали ReAct цикла (Reasoning → Acting → Observing)
+
+🔄 ReAct ЦИКЛ:
+1. Reasoning: AnalyzeQueryTool анализирует запрос
+2. Acting: Вызывает соответствующие инструменты
+3. Observing: Оценивает результаты и принимает решения
+4. Повторяет цикл до получения полного ответа
         """
     
     def show_detailed_data_flow(self) -> str:
-        """Показывает детальную информацию о передаче данных между агентами"""
+        """Показывает детальную информацию о передаче данных между агентами в новой ReAct архитектуре"""
         if not self.current_family_id:
             return "❌ Семья не выбрана. Начните диалог с ботом."
         
@@ -437,13 +474,13 @@ class FrontendSimulator:
             
             if not profile:
                 return """
-📊 ДЕТАЛЬНЫЙ АНАЛИЗ ПЕРЕДАЧИ ДАННЫХ:
+📊 ДЕТАЛЬНЫЙ АНАЛИЗ ПЕРЕДАЧИ ДАННЫХ (ReAct Architecture):
 
 ❌ Профиль семьи не найден
 📤 PersonalizationReactAgent будет:
    • Создавать новый профиль через последовательный сбор данных
    • Не передавать данные в RouterAgent
-   • Обрабатывать запросы самостоятельно
+   • Обрабатывать запросы самостоятельно (Sequential Mode)
 
 💡 Создайте профиль семьи, описав свою семью боту.
                 """
@@ -452,28 +489,45 @@ class FrontendSimulator:
             routing_data = self.planner.personalization_agent.prepare_data_for_routing("test_query", self.current_family_id)
             
             return f"""
-📊 ДЕТАЛЬНЫЙ АНАЛИЗ ПЕРЕДАЧИ ДАННЫХ:
+📊 ДЕТАЛЬНЫЙ АНАЛИЗ ПЕРЕДАЧИ ДАННЫХ (ReAct Architecture):
+
+🏗️ АРХИТЕКТУРА:
+PersonalizationReactAgent → RouterAgent → Специализированные агенты
 
 📤 PersonalizationReactAgent ПЕРЕДАЕТ RouterAgent:
 {json.dumps(routing_data, indent=2, ensure_ascii=False)}
 
-📥 RouterAgent ПОЛУЧАЕТ:
+📥 RouterAgent ПОЛУЧАЕТ И ОБРАБАТЫВАЕТ:
    • Query: {routing_data.get('query', 'N/A')}
    • Family ID: {routing_data.get('family_id', 'N/A')}
    • Profile data: {len(routing_data.get('profile', {}))} полей
    • Query analysis: {len(routing_data.get('query_analysis', {}))} полей
-   • Needs flags: {[k for k, v in routing_data.items() if k.startswith('needs_') and v]}
+
+🔄 ReAct WORKFLOW В RouterAgent:
+   1. Reasoning: AnalyzeQueryTool анализирует запрос
+   2. Acting: Вызывает соответствующие инструменты:
+      - CallActivitiesAgentTool (если нужны активности)
+      - CallRestaurantsAgentTool (если нужны рестораны)
+   3. Observing: Оценивает результаты и принимает решения
+   4. Повторяет цикл до получения полного ответа
+
+🔧 ИНСТРУМЕНТЫ RouterAgent:
+   • AnalyzeQueryTool: Анализирует запрос через LLM
+   • CallActivitiesAgentTool: Вызывает ActivitiesAgent
+   • CallRestaurantsAgentTool: Вызывает RestoranAgent
 
 🔍 АНАЛИЗ ИСПОЛЬЗОВАНИЯ ДАННЫХ:
    • Используется в логах: query, family_id
-   • Используется для агентов: needs_hotels, needs_restaurants, needs_activities, needs_transport
+   • Используется в AnalyzeQueryTool: query для анализа
+   • Используется в CallActivitiesAgentTool: полный routing_data
+   • Используется в CallRestaurantsAgentTool: полный routing_data
    • Используется в ответах: profile.kids_ages, profile.adults_count, profile.budget_level, etc.
-   • НЕ используется: query_analysis (полностью), is_planning
 
 💡 РЕКОМЕНДАЦИИ:
-   • Все данные передаются корректно
+   • Все данные передаются корректно через ReAct архитектуру
    • RouterAgent получает полную информацию о семье
    • Специализированные агенты могут использовать все поля профиля
+   • ReAct цикл обеспечивает более интеллектуальную маршрутизацию
             """
             
         except Exception as e:
@@ -643,9 +697,9 @@ class FrontendSimulator:
         return f"✅ Сценарий '{scenario['name']}' выполнен успешно! Обработано {total_responses} сообщений."
     
     def test_activities_agent(self) -> str:
-        """Тестирует ActivitiesAgent напрямую"""
-        print("\n🎯 ТЕСТИРОВАНИЕ ActivitiesAgent")
-        print("=" * 50)
+        """Тестирует ActivitiesAgent через новую ReAct архитектуру RouterAgent"""
+        print("\n🎯 ТЕСТИРОВАНИЕ ActivitiesAgent (ReAct Architecture)")
+        print("=" * 60)
         
         try:
             # Создаем тестовый профиль семьи
@@ -662,6 +716,7 @@ class FrontendSimulator:
             
             print(f"🆔 Создан тестовый ID семьи: {test_family_id}")
             print(f"📋 Тестовые запросы: {len(test_queries)}")
+            print(f"🏗️ Архитектура: PersonalizationReactAgent → RouterAgent → CallActivitiesAgentTool → ActivitiesAgent")
             
             # Создаем профиль семьи
             print("\n📝 Создание профиля семьи...")
@@ -674,16 +729,31 @@ class FrontendSimulator:
             # Тестируем каждый запрос
             for i, query in enumerate(test_queries, 1):
                 print(f"\n🔍 Тест {i}/{len(test_queries)}: {query}")
-                print("-" * 40)
+                print("-" * 60)
+                
+                # Показываем передачу данных в новой архитектуре
+                print("🔄 АНАЛИЗ ReAct WORKFLOW:")
+                print("   1. PersonalizationReactAgent получает запрос")
+                print("   2. RouterAgent запускает ReAct цикл")
+                print("   3. AnalyzeQueryTool анализирует запрос")
+                print("   4. CallActivitiesAgentTool вызывает ActivitiesAgent")
+                print("   5. ActivitiesAgent обрабатывает запрос")
+                print("   6. Результат возвращается через ReAct цикл")
                 
                 # Показываем передачу данных
                 self.show_data_flow_info(query)
                 
                 # Обрабатываем запрос
+                print(f"\n⚙️ ОБРАБОТКА ЗАПРОСА:")
                 response = self.planner.process_query(query, test_family_id)
                 
                 # Показываем анализ ответа
                 self.show_router_response_info(response)
+                
+                # Детальный анализ ActivitiesAgent
+                if "actividad" in response.lower() or "museo" in response.lower():
+                    print(f"\n🎯 ДЕТАЛЬНЫЙ АНАЛИЗ ActivitiesAgent:")
+                    self.analyze_activities_agent_response(response)
                 
                 # Логируем результат
                 self.log_message(query, response, 0)
@@ -694,7 +764,7 @@ class FrontendSimulator:
                 if i < len(test_queries):
                     input("\n⏸️  Нажмите Enter для следующего теста...")
             
-            return f"✅ Тестирование ActivitiesAgent завершено успешно! Выполнено {len(test_queries)} тестов."
+            return f"✅ Тестирование ActivitiesAgent (ReAct) завершено успешно! Выполнено {len(test_queries)} тестов."
             
         except Exception as e:
             return f"❌ Ошибка тестирования ActivitiesAgent: {e}"
@@ -707,13 +777,22 @@ class FrontendSimulator:
         
         avg_response_time = sum(msg["response_time"] for msg in self.session_data["messages"]) / total_messages
         
+        # Анализируем использование ReAct архитектуры
+        react_responses = [msg for msg in self.session_data["messages"] if "RouterAgent" in msg.get('bot_response', '') or "ReAct" in msg.get('bot_response', '')]
+        activities_responses = [msg for msg in self.session_data["messages"] if "actividad" in msg.get('bot_response', '').lower()]
+        
         return f"""
-📊 СТАТИСТИКА СЕССИИ:
+📊 СТАТИСТИКА СЕССИИ (ReAct Architecture):
 
 🕐 Время начала: {self.session_data['start_time'].strftime('%H:%M:%S')}
 💬 Всего сообщений: {total_messages}
 ⚡ Среднее время ответа: {avg_response_time:.2f} сек
 👨‍👩‍👧‍👦 ID семьи: {self.current_family_id or 'Не выбрана'}
+
+🏗️ АРХИТЕКТУРА:
+🔄 ReAct RouterAgent использован: {len(react_responses)} раз
+🎯 ActivitiesAgent вызван: {len(activities_responses)} раз
+📤 PersonalizationReactAgent (Sequential): {total_messages - len(react_responses)} раз
 
 📈 Последние сообщения:
 {self.get_recent_messages(3)}

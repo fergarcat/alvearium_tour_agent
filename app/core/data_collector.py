@@ -41,8 +41,8 @@ class FamilyDataCollector:
         """Валидация возрастов детей"""
         try:
             ages = [int(x.strip()) for x in value.split(",")]
-            if not all(0 < age < 18 for age in ages):
-                raise ValueError("Las edades deben estar entre 1 y 17 años")
+            if not all(0 <= age < 18 for age in ages):
+                raise ValueError("Las edades deben estar entre 0 y 17 años")
             return ages
         except ValueError as e:
             raise ValueError(f"Formato inválido. Usa: 8, 12 o 5, 7, 10. Error: {e}")
