@@ -82,32 +82,43 @@ transport_task = Task(
     ),
     agent=transport_agent,
     expected_output=(
-        "JSON with structure: { 'transportation': [ { 'mode': str, 'provider': str, "
+        "JSON with structure: { 'transportary': [ { 'mode': str, 'provider': str, "
         "'price_range': str, 'duration': str, 'family_friendly': bool } ] }"
     ),
     output_file="transportation.json"
 )
 
 # -----------------------------
-# Itinerary (Updated to use outputs from other tasks)
+# Itinerary - Returns formatted text for web display
 # -----------------------------
 itinerary_task = Task(
     description=(
         "Based on all the trip information: {input}, and the recommendations from other agents, "
-        "create a detailed daily itinerary for {input[trip_duration]} in Madrid. "
+        "create a beautifully formatted daily itinerary for {input[trip_duration]} in Madrid. "
         "Use the hotel recommendations from the Hotel Agent, "
         "restaurant recommendations from the Restaurant Agent, "
         "activity recommendations from the Activities Agent, "
         "and transportation options from the Transport Agent. "
         "Combine these into a cohesive itinerary suitable for a family with "
-        "{input[adults]} adults, {input[children]} children ({input[children_age]}). "
+        "{input[adults]} adults, {input[children]} children ({input[children_age]}).\n\n"
+        "Format the output as clean, readable text with:\n"
+        "- Clear day headings (Day 1, Day 2, etc.)\n"
+        "- Morning, afternoon, and evening sections for each day\n"
+        "- Include specific times where appropriate\n"
+        "- Mention transportation methods between locations\n"
+        "- Include practical tips for families with young children\n"
+        "- Make it engaging and easy to read in a web browser\n\n"
         "Ensure the itinerary is practical, logical, and family-friendly, "
         "considering travel times between locations and appropriate timing for meals and activities."
     ),
     agent=itinerary_agent,
     expected_output=(
-        "JSON with structure: { 'itinerary': [ { 'day': int, 'morning': str, "
-        "'afternoon': str, 'evening': str } ] }"
+        "A beautifully formatted text itinerary ready for web display with:\n"
+        "- Clear day sections\n"
+        "- Morning, afternoon, evening activities\n"
+        "- Transportation details\n"
+        "- Family-friendly tips\n"
+        "- Engaging and readable format"
     ),
     context=[hotel_task, restaurant_task, activities_task, transport_task]
 )
