@@ -165,7 +165,7 @@ if __name__ == "__main__":
             print("Goodbye! 👋")
             break
 
-        follow_up = process_user_input(query)
+        follow_up = process_user_input(query,conversation_state)
         if follow_up:
             print(follow_up)
         else:
