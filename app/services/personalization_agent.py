@@ -690,9 +690,9 @@ Empecemos con la primera pregunta:
                 request_type = "accommodation"
             
             # Получаем данные из собранной информации или используем дефолтные значения
-            budget_level = getattr(profile, 'budget_level', 'medium') or 'medium'
-            start_date = getattr(profile, 'start_date', '2024-12-01') or '2024-12-01'
-            end_date = getattr(profile, 'end_date', '2024-12-05') or '2024-12-05'
+            budget_level = getattr(profile, 'budget_level', 'medium') if hasattr(profile, 'budget_level') else 'medium'
+            start_date = getattr(profile, 'start_date', '2024-12-01') if hasattr(profile, 'start_date') else '2024-12-01'
+            end_date = getattr(profile, 'end_date', '2024-12-05') if hasattr(profile, 'end_date') else '2024-12-05'
             
             profile.save_travel_request(request_type, {
                 "query": query,
@@ -749,12 +749,12 @@ Empecemos con la primera pregunta:
                 "profile": {
                     "kids_ages": profile.kids_ages,
                     "adults_count": profile.adults_count,
-                    "budget_level": getattr(profile, 'budget_level', 'medium') or 'medium',
+                    "budget_level": getattr(profile, 'budget_level', 'medium') if hasattr(profile, 'budget_level') else 'medium',
                     "interests": profile.interests,
                     "special_needs": profile.special_needs,
                     "language_preference": profile.language_preference,
-                    "start_date": getattr(profile, 'start_date', '2024-12-01') or '2024-12-01',
-                    "end_date": getattr(profile, 'end_date', '2024-12-05') or '2024-12-05'
+                    "start_date": getattr(profile, 'start_date', '2024-12-01') if hasattr(profile, 'start_date') else '2024-12-01',
+                    "end_date": getattr(profile, 'end_date', '2024-12-05') if hasattr(profile, 'end_date') else '2024-12-05'
                 },
                 "query_analysis": query_analysis,
                 "needs_hotels": query_analysis.get("needs_hotels", False),

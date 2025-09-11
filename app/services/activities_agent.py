@@ -1,7 +1,7 @@
 # app/services/activities_agent.py
 """
-Activities Agent - специализированный агент для планирования развлечений
-Реакт-агент, получающий запросы от RouterAgent
+Activities Agent - specialized agent for entertainment planning
+React agent that receives requests from RouterAgent
 """
 
 import os
@@ -16,18 +16,18 @@ from langchain.agents import AgentExecutor, create_react_agent
 from langchain.prompts import PromptTemplate
 from langchain.output_parsers import PydanticOutputParser
 
-# Импортируем Pydantic модели
+# Import Pydantic models
 from app.models.activities_models import ActivitiesResponse, ActivitiesAgentResult
 from app.tools.activities_tools import create_activities_plan
 
-# Добавляем путь к проекту для корректных импортов
+# Add project path for correct imports
 current_dir = Path(__file__).parent
 project_root = current_dir.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 class ActivitiesAgent:
-    """Специализированный агент для планирования развлечений в Мадриде"""
+    """Specialized agent for entertainment planning in Madrid"""
     
     def __init__(self):
         self.llm = ChatOpenAI(
@@ -38,13 +38,13 @@ class ActivitiesAgent:
         
         self.activities_database = self._initialize_activities_database()
         
-        # Создаем парсер для структурированного вывода
+        # Create parser for structured output
         self.output_parser = PydanticOutputParser(pydantic_object=ActivitiesResponse)
         
-        # Добавляем API сервисы
+        # Add API services
         self.api_services = self._initialize_api_services()
         
-        # Создаем инструменты с API возможностями
+        # Create tools with API capabilities
         self.tools = self._create_enhanced_tools()
         self.prompt = self._create_enhanced_prompt()
         
@@ -67,7 +67,7 @@ class ActivitiesAgent:
         print("✅ ActivitiesAgent инициализирован с API функциональностью")
     
     def _initialize_activities_database(self) -> Dict[str, List[Dict]]:
-        """Инициализирует базу данных активностей"""
+        """Initialize activities database"""
         return {
             "museums": [
                 {
@@ -98,7 +98,7 @@ class ActivitiesAgent:
         }
     
     def _initialize_api_services(self) -> Dict[str, Any]:
-        """Инициализирует API сервисы"""
+        """Initialize API services"""
         return {
             "google_places": self._init_google_places(),
             "weather": self._init_weather_api(),
@@ -240,8 +240,18 @@ Consulta del usuario: {input}
             interests = profile.get('interests', []) if isinstance(profile, dict) else getattr(profile, 'interests', [])
             origin_country = profile.get('origin_country', 'Spain') if isinstance(profile, dict) else getattr(profile, 'origin_country', 'Spain')
             special_needs = profile.get('special_needs', []) if isinstance(profile, dict) else getattr(profile, 'special_needs', [])
-            budget_level = profile.get('budget_level', 'medium') if isinstance(profile, dict) else getattr(profile, 'budget_level', 'medium')
-            travel_dates = profile.get('travel_dates', '') if isinstance(profile, dict) else f"{getattr(profile, 'start_date', '')} - {getattr(profile, 'end_date', '')}"
+            # budget_level может отсутствовать в FamilyProfileSupabase, используем значение по умолчанию
+            if isinstance(profile, dict):
+                budget_level = profile.get('budget_level', 'medium')
+            else:
+                budget_level = getattr(profile, 'budget_level', 'medium') if hasattr(profile, 'budget_level') else 'medium'
+            # travel_dates также может отсутствовать в FamilyProfileSupabase
+            if isinstance(profile, dict):
+                travel_dates = profile.get('travel_dates', '')
+            else:
+                start_date = getattr(profile, 'start_date', '') if hasattr(profile, 'start_date') else ''
+                end_date = getattr(profile, 'end_date', '') if hasattr(profile, 'end_date') else ''
+                travel_dates = f"{start_date} - {end_date}" if start_date and end_date else ''
             
             context = {
                 "input": query,

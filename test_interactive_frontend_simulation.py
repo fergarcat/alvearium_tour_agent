@@ -124,16 +124,16 @@ class FrontendSimulator:
                         print(f"     - interests: {profile.interests}")
                         print(f"     - origin_country: {profile.origin_country}")
                         print(f"     - special_needs: {profile.special_needs}")
-                        print(f"     - budget_level: {profile.budget_level}")
-                        print(f"     - travel_dates: {profile.start_date} - {profile.end_date}")
+                        print(f"     - budget_level: {getattr(profile, 'budget_level', 'medium')}")
+                        print(f"     - travel_dates: {getattr(profile, 'start_date', '')} - {getattr(profile, 'end_date', '')}")
                         print(f"   • Context for LLM:")
                         print(f"     - kids_ages: {profile.kids_ages}")
                         print(f"     - adults_count: {profile.adults_count}")
                         print(f"     - interests: {profile.interests}")
                         print(f"     - origin_country: {profile.origin_country}")
                         print(f"     - special_needs: {profile.special_needs}")
-                        print(f"     - budget_level: {profile.budget_level}")
-                        print(f"     - travel_dates: {profile.start_date} - {profile.end_date}")
+                        print(f"     - budget_level: {getattr(profile, 'budget_level', 'medium')}")
+                        print(f"     - travel_dates: {getattr(profile, 'start_date', '')} - {getattr(profile, 'end_date', '')}")
                 else:
                     print(f"   • Needs multi-agent: False")
                     print(f"   • Will use simple response")
@@ -342,7 +342,7 @@ class FrontendSimulator:
                 print(f"   • Дети: {profile.kids_ages} лет")
                 print(f"   • Взрослые: {profile.adults_count}")
                 print(f"   • Интересы: {profile.interests}")
-                print(f"   • Бюджет: {profile.budget_level}")
+                print(f"   • Бюджет: {getattr(profile, 'budget_level', 'medium')}")
             else:
                 print(f"   ❌ Профиль не найден - будет создан новый")
             
@@ -499,8 +499,8 @@ class FrontendSimulator:
 📊 Основная информация:
   • Дети: {profile.kids_ages} лет
   • Взрослые: {profile.adults_count}
-  • Бюджет: {profile.budget_level}
-  • Даты: {profile.start_date} - {profile.end_date}
+  • Бюджет: {getattr(profile, 'budget_level', 'medium')}
+  • Даты: {getattr(profile, 'start_date', '')} - {getattr(profile, 'end_date', '')}
   • Интересы: {', '.join(profile.interests) if profile.interests else 'Не указаны'}
   • Страна: {profile.origin_country or 'Не указана'}
 

@@ -92,9 +92,9 @@ async def create_family(
             family_id=profile.family_id,
             kids_ages=profile.kids_ages,
             adults_count=profile.adults_count,
-            budget_level=profile.budget_level,
-            start_date=profile.start_date,
-            end_date=profile.end_date,
+            budget_level=getattr(profile, 'budget_level', 'medium'),
+            start_date=getattr(profile, 'start_date', ''),
+            end_date=getattr(profile, 'end_date', ''),
             interests=profile.interests,
             origin_country=profile.origin_country,
             special_needs=profile.special_needs or [],
@@ -155,9 +155,9 @@ async def get_family(
             family_id=profile.family_id,
             kids_ages=profile.kids_ages,
             adults_count=profile.adults_count,
-            budget_level=profile.budget_level,
-            start_date=profile.start_date,
-            end_date=profile.end_date,
+            budget_level=getattr(profile, 'budget_level', 'medium'),
+            start_date=getattr(profile, 'start_date', ''),
+            end_date=getattr(profile, 'end_date', ''),
             interests=profile.interests,
             origin_country=profile.origin_country,
             special_needs=profile.special_needs or [],
@@ -209,7 +209,7 @@ async def update_family(
         if family_data.adults_count is not None:
             profile.adults_count = family_data.adults_count
         if family_data.budget_level is not None:
-            profile.budget_level = family_data.budget_level
+            setattr(profile, 'budget_level', family_data.budget_level)
         if family_data.start_date is not None:
             profile.start_date = family_data.start_date
         if family_data.end_date is not None:
@@ -238,9 +238,9 @@ async def update_family(
             family_id=profile.family_id,
             kids_ages=profile.kids_ages,
             adults_count=profile.adults_count,
-            budget_level=profile.budget_level,
-            start_date=profile.start_date,
-            end_date=profile.end_date,
+            budget_level=getattr(profile, 'budget_level', 'medium'),
+            start_date=getattr(profile, 'start_date', ''),
+            end_date=getattr(profile, 'end_date', ''),
             interests=profile.interests,
             origin_country=profile.origin_country,
             special_needs=profile.special_needs or [],

@@ -181,7 +181,7 @@ class FamilyDataCollector:
         print(f"📊 Resumen de tu familia:")
         print(f"   👶 Edades de los niños: {profile.kids_ages}")
         print(f"   👨‍👩‍👧‍👦 Adultos: {profile.adults_count}")
-        print(f"   💰 Presupuesto: {profile.budget_level}")
+        print(f"   💰 Presupuesto: {getattr(profile, 'budget_level', 'medium')}")
         print(f"   📅 Fechas: {profile.start_date} a {profile.end_date}")
         print(f"   🎯 Intereses: {', '.join(profile.interests)}")
         print(f"   🌍 Origen: {profile.origin_country}")
