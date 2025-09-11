@@ -1,4 +1,15 @@
 fastapi
+
+uvicorn 
+langchain 
+pinecone-client 
+openai 
+pypdf 
+crewai
+requests
+langchain
+langchain-groq
+=======
 uvicorn
 langchain
 langchain-groq
@@ -21,4 +32,5 @@ pypdf
 beautifulsoup4
 gdown
 tavily-python
+
 
