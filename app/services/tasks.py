@@ -99,6 +99,7 @@ itinerary_task = Task(
         "restaurant recommendations from the Restaurant Agent, "
         "activity recommendations from the Activities Agent, "
         "and transportation options from the Transport Agent. "
+        "Translate all content to {input[user_language]}.\n\n"
         "Combine these into a cohesive itinerary suitable for a family with "
         "{input[adults]} adults, {input[children]} children ({input[children_age]}).\n\n"
         "Format the output as clean, readable text with:\n"
@@ -121,4 +122,4 @@ itinerary_task = Task(
         "- Engaging and readable format"
     ),
     context=[hotel_task, restaurant_task, activities_task, transport_task]
-)
+) 

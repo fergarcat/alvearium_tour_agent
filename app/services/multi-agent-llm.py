@@ -130,19 +130,20 @@ def process_user_input(user_input: str):
 
         # Check required fields first
         missing_required = get_first_missing_required_field()
+        print(f"Missing required field: {missing_required}")
         if missing_required:
             # Always prioritize missing REQUIRED fields
             follow_up_question = f"Could you please provide details for '{missing_required}'?"
         else:
             # If all required fields are filled, force the follow-up to be empty
-            follow_up_question = ""
+            follow_up_question = None
 
 
         # Ask a follow-up if needed
         if follow_up_question:
             return mouse_talking(conversation_state, follow_up_question)
         else:
-            mouse_trip_creation(conversation_state)
+            print(mouse_trip_creation(conversation_state))
             return create_trip(conversation_state)  # Finalize trip creation
             
 

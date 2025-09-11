@@ -69,9 +69,8 @@ PLAN_PROMPT = PromptTemplate(
         "  \"activities\": \"<planned activities or Not specified>\",\n"
         "  \"transportation\": \"<transportation preferences or Not specified>\",\n"
         "  \"special_needs\": \"<special needs or Not specified>\",\n"
-        "  \"follow_up_question\": \"<short question ONLY if a REQUIRED field is missing, otherwise empty>\"\n"
-        "}}\n\n"
-        "Return ONLY valid JSON. Do NOT add extra fields like 'budget' or 'weather'."
+        "  \"follow_up_question\": \"<short question ONLY if a REQUIRED field is missing, otherwise empty. If some field has already info, DON'T ask again for it>\"\n"
+         "Return ONLY valid JSON. Do NOT add extra fields like 'budget' or 'weather'."
     ),
     input_variables=["input"]
 )
@@ -84,17 +83,3 @@ GUIDE_PROMPT = PromptTemplate(
         "Return a comprehensive and engaging detailed trip plan in markdown format\n"
     )
 )
-
-# # Existing specialized prompt infos for routing
-# PROMPT_INFOS = [
-#     {"name": "hotels", "description": "Questions about hotels and accommodations",
-#      "prompt_template": "You are a tourist agent specialized in hotel recommendations.\nQuestion: {input}\nAnswer like a local expert."},
-#     {"name": "restaurants", "description": "Questions about restaurants and dining",
-#      "prompt_template": "You are a culinary guide specialized in restaurant recommendations.\nQuestion: {input}\nProvide the best options."},
-#     {"name": "activities", "description": "Questions about activities, sightseeing, and excursions",
-#      "prompt_template": "You are a tourist activities expert.\nQuestion: {input}\nSuggest fun excursions and attractions."},
-#     {"name": "transportation", "description": "Questions about taxis, buses, trains, and rentals",
-#      "prompt_template": "You are a travel transportation expert.\nQuestion: {input}\nProvide practical transport options."},
-#     {"name": "all", "description": "Full trip plan including hotels, restaurants, activities, and transport",
-#      "prompt_template": "You are a comprehensive tourist assistant.\nQuestion: {input}\nProvide hotels, restaurants, activities, and transportation recommendations in one response."}
-# ]
