@@ -9,7 +9,7 @@ from pydantic import BaseModel
 import time
 import os
 from datetime import datetime
-from api.dependencies import get_supabase_config, get_openai_config
+from ...dependencies import get_supabase_config, get_openai_config
 from agents.personalization_agent import PersonalizedTripPlanner
 
 router = APIRouter(prefix="/agents", tags=["agents"])
@@ -398,13 +398,13 @@ async def chat_with_agent(
     """
     Универсальный endpoint для чата с агентом Ratoncito Pérez
     
-    Автоматически определяет:
-    - Нужно ли инициализировать профиль семьи
-    - Находится ли агент в процессе сбора данных
-    - Завершен ли сбор профиля
+    Правильная логика с сохранением состояния разговора:
+    - Сохраняет состояние между запросами
+    - Обрабатывает последовательный сбор данных
+    - Поддерживает интерактивный диалог
     
     Принимает:
-    - message: текст сообщения пользователя (может быть пустым для инициализации)
+    - message: текст сообщения пользователя
     - family_id: ID семьи (опционально, по умолчанию "default")
     - conversation_id: ID разговора (опционально, для продолжения диалога)
     - is_initialization: флаг принудительной инициализации (опционально)
@@ -420,26 +420,32 @@ async def chat_with_agent(
     - profile_complete: профиль собран
     """
     try:
-        planner = get_planner()
+        from services.conversation_service import conversation_service
         
         # Генерируем conversation_id если не предоставлен
         conversation_id = request.conversation_id or f"conv_{int(time.time())}_{request.family_id}"
         
-        # Проверяем, есть ли профиль семьи
-        profile = planner.get_family_profile(request.family_id)
-        is_collecting_data = False
-        data_collection_step = None
-        profile_complete = False
+        print(f"🤖 Chat Endpoint: Обработка сообщения")
+        print(f"   Conversation ID: {conversation_id}")
+        print(f"   Family ID: {request.family_id}")
+        print(f"   Message: {request.message[:50]}...")
+        print(f"   Is Initialization: {request.is_initialization}")
         
-        # Если профиль не найден или это принудительная инициализация
-        if not profile or request.is_initialization:
-            is_collecting_data = True
-            data_collection_step = "initialization"
-            
-            # Если это первое сообщение или пустое, начинаем с приветствия
-            if not request.message or request.message.strip() == "":
+        # Если это принудительная инициализация, начинаем новый разговор
+        if request.is_initialization:
+            conversation_id = conversation_service.start_new_conversation(request.family_id)
+            print(f"🔄 Chat Endpoint: Начат новый разговор {conversation_id}")
+        
+        # Получаем состояние разговора
+        state = conversation_service.get_conversation_state(conversation_id, request.family_id)
+        
+        # Если это первое сообщение и профиль не собран, начинаем с приветствия
+        if not request.message or request.message.strip() == "":
+            if state.profile_complete:
+                # Профиль уже собран, показываем информацию
+                planner = get_planner()
+                profile = planner.get_family_profile(request.family_id)
                 if profile:
-                    # Профиль уже есть, но принудительная инициализация
                     response = f"""🐭 ¡Hola de nuevo! Ya tengo tu perfil familiar guardado.
 
 Tu familia: {profile.get_family_size()} miembros, {profile.get_age_group()}
@@ -447,47 +453,183 @@ Presupuesto: medium
 Intereses: {', '.join(profile.interests) if profile.interests else 'No especificados'}
 
 ¿En qué puedo ayudarte con tu viaje a Madrid?"""
-                    profile_complete = True
-                    is_collecting_data = False
-                    data_collection_step = "complete"
                 else:
-                    # Начинаем сбор данных
-                    response = """🐭 ¡Hola! Soy el Ratoncito Pérez, tu asistente mágico para viajes familiares en Madrid!
+                    response = "🐭 ¡Hola! Soy el Ratoncito Pérez, tu asistente mágico para viajes familiares en Madrid!"
+                
+                return ChatResponse(
+                    response=response,
+                    family_id=request.family_id,
+                    conversation_id=conversation_id,
+                    timestamp=datetime.now().isoformat(),
+                    agent="Ratoncito Pérez",
+                    is_collecting_data=False,
+                    data_collection_step="complete",
+                    profile_complete=True
+                )
+            else:
+                # Начинаем сбор данных
+                response = """🐭 ¡Hola! Soy el Ratoncito Pérez, tu asistente mágico para viajes familiares en Madrid!
 
 Para personalizar tu experiencia, necesito conocer algunos datos sobre tu familia:
 
 📝 ¿Cuáles son las edades de tus hijos? (ej: 8, 12 o 5, 7, 10)"""
-            else:
-                # Обрабатываем ответ пользователя через агента
-                response = planner.process_query(request.message, request.family_id)
                 
-                # Проверяем, завершен ли сбор данных
-                updated_profile = planner.get_family_profile(request.family_id)
-                if updated_profile:
-                    profile_complete = True
-                    is_collecting_data = False
-                    data_collection_step = "complete"
-        else:
-            # Профиль уже есть, обычная обработка
+                return ChatResponse(
+                    response=response,
+                    family_id=request.family_id,
+                    conversation_id=conversation_id,
+                    timestamp=datetime.now().isoformat(),
+                    agent="Ratoncito Pérez",
+                    is_collecting_data=True,
+                    data_collection_step="kids_ages",
+                    profile_complete=False
+                )
+        
+        # Обрабатываем сообщение пользователя
+        if state.profile_complete:
+            # Профиль собран, обычный чат
+            planner = get_planner()
             response = planner.process_query(request.message, request.family_id)
-            profile_complete = True
+            
+            return ChatResponse(
+                response=response,
+                family_id=request.family_id,
+                conversation_id=conversation_id,
+                timestamp=datetime.now().isoformat(),
+                agent="Ratoncito Pérez",
+                is_collecting_data=False,
+                data_collection_step=None,
+                profile_complete=True
+            )
+        else:
+            # Сбор данных - обрабатываем ответ на текущий вопрос
+            collection_response = conversation_service.process_chat_message(
+                request.message, 
+                conversation_id, 
+                request.family_id
+            )
+            
+            # Обновляем состояние разговора
+            updated_state = conversation_service.get_conversation_state(conversation_id, request.family_id)
+            
+            return ChatResponse(
+                response=collection_response.response,
+                family_id=request.family_id,
+                conversation_id=conversation_id,
+                timestamp=datetime.now().isoformat(),
+                agent="Ratoncito Pérez",
+                is_collecting_data=not collection_response.profile_complete,
+                data_collection_step=collection_response.next_step,
+                profile_complete=collection_response.profile_complete
+            )
         
-        # Получаем текущее время
-        timestamp = datetime.now().isoformat()
-        
-        return ChatResponse(
-            response=response,
-            family_id=request.family_id,
-            conversation_id=conversation_id,
-            timestamp=timestamp,
-            agent="Ratoncito Pérez",
-            is_collecting_data=is_collecting_data,
-            data_collection_step=data_collection_step,
-            profile_complete=profile_complete
+    except Exception as e:
+        print(f"❌ Chat Endpoint: Ошибка обработки сообщения: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error processing chat message: {str(e)}"
         )
+
+# Дополнительные endpoints для управления разговорами
+
+@router.post("/conversations/start")
+async def start_new_conversation(
+    family_id: str = "default",
+    supabase_config: Dict[str, str] = Depends(get_supabase_config),
+    openai_config: Dict[str, str] = Depends(get_openai_config)
+):
+    """Начинает новый разговор для сбора данных"""
+    try:
+        from services.conversation_service import conversation_service
+        
+        conversation_id = conversation_service.start_new_conversation(family_id)
+        
+        return {
+            "conversation_id": conversation_id,
+            "family_id": family_id,
+            "message": "Nueva conversación iniciada",
+            "status": "ready"
+        }
         
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error processing chat message: {str(e)}"
+            detail=f"Error starting conversation: {str(e)}"
+        )
+
+@router.get("/conversations/{conversation_id}/status")
+async def get_conversation_status(
+    conversation_id: str,
+    family_id: str = "default",
+    supabase_config: Dict[str, str] = Depends(get_supabase_config),
+    openai_config: Dict[str, str] = Depends(get_openai_config)
+):
+    """Получает статус разговора"""
+    try:
+        from services.conversation_service import conversation_service
+        
+        state = conversation_service.get_conversation_state(conversation_id, family_id)
+        
+        return {
+            "conversation_id": conversation_id,
+            "family_id": family_id,
+            "current_step": state.current_step,
+            "is_collecting": state.is_collecting,
+            "profile_complete": state.profile_complete,
+            "collected_fields": list(state.collected_data.keys()),
+            "created_at": state.created_at.isoformat(),
+            "updated_at": state.updated_at.isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error getting conversation status: {str(e)}"
+        )
+
+@router.delete("/conversations/{conversation_id}")
+async def delete_conversation(
+    conversation_id: str,
+    family_id: str = "default",
+    supabase_config: Dict[str, str] = Depends(get_supabase_config),
+    openai_config: Dict[str, str] = Depends(get_openai_config)
+):
+    """Удаляет разговор"""
+    try:
+        from services.conversation_service import conversation_service
+        
+        conversation_service.conversation_manager.delete_conversation_state(conversation_id)
+        
+        return {
+            "conversation_id": conversation_id,
+            "message": "Conversación eliminada",
+            "status": "deleted"
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting conversation: {str(e)}"
+        )
+
+@router.get("/conversations")
+async def list_conversations(
+    supabase_config: Dict[str, str] = Depends(get_supabase_config),
+    openai_config: Dict[str, str] = Depends(get_openai_config)
+):
+    """Получает список всех активных разговоров"""
+    try:
+        from services.conversation_service import conversation_service
+        
+        conversations = conversation_service.conversation_manager.get_all_conversations()
+        
+        return {
+            "conversations": [conv.to_dict() for conv in conversations],
+            "total": len(conversations)
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error listing conversations: {str(e)}"
         )

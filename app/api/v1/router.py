@@ -4,7 +4,7 @@
 """
 
 from fastapi import APIRouter
-from api.v1.endpoints import health, families, agents
+from .endpoints import health, families, agents
 
 # Создаем главный роутер для v1
 api_router = APIRouter()

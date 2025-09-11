@@ -47,8 +47,8 @@ class PersonalizedTripPlanner:
         print("🚀 Инициализация PersonalizedTripPlanner (Pure Orchestrator)...")
         
         # Инициализация агента с полным управлением данными
-        from app.services.personalization_agent import PersonalizationReactAgent
-        from app.services.router_agent import RouterAgent
+        from services.personalization_agent import PersonalizationReactAgent
+        from services.router_agent import RouterAgent
         
         self.personalization_agent = PersonalizationReactAgent()
         self.router_agent = RouterAgent()

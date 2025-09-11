@@ -5,7 +5,7 @@
 
 from typing import List, Dict, Any
 from datetime import datetime
-from app.models.family_models import FamilyProfile
+from models.family_models import FamilyProfile
 
 class FamilyDataCollector:
     """Интерактивный сбор основных данных о семье"""

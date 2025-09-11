@@ -18,7 +18,7 @@ class MultiAgentWorkflow:
         
         # Импортируем существующий PersonalizationReactAgent как координатора
         try:
-            from app.services.personalization_agent import PersonalizationReactAgent
+            from services.personalization_agent import PersonalizationReactAgent
             # Координатор - главный агент, который принимает запросы
             self.coordinator = PersonalizationReactAgent()
             print("✅ Координатор (PersonalizationReactAgent) инициализирован")

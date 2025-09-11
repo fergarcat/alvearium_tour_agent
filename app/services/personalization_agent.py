@@ -168,7 +168,7 @@ class PersonalizationReactAgent:
         """Создает React Agent с инструментами"""
         try:
             from langchain.agents import create_react_agent
-            from app.services.prompt_templates import PERSONALIZATION_AGENT_PROMPT
+            from .prompt_templates import PERSONALIZATION_AGENT_PROMPT
             
             # Создаем агента с внешним промптом
             # Получаем имена инструментов

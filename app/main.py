@@ -3,10 +3,18 @@
 Главный файл приложения FastAPI
 """
 
+import sys
+import os
+from pathlib import Path
+
+# Добавляем текущую папку в sys.path для корректных импортов
+current_dir = Path(__file__).parent
+if str(current_dir) not in sys.path:
+    sys.path.insert(0, str(current_dir))
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-import os
 from dotenv import load_dotenv
 
 # Загружаем переменные окружения
@@ -99,7 +107,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=8000,
+        port=8001,
         reload=True,
         log_level="info"
     )

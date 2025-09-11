@@ -6,7 +6,7 @@ Family management endpoints
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Dict, Any, Optional, List
 from pydantic import BaseModel
-from api.dependencies import get_supabase_config
+from ...dependencies import get_supabase_config
 from models.family_models_supabase import FamilyProfileSupabase
 
 router = APIRouter(prefix="/families", tags=["families"])

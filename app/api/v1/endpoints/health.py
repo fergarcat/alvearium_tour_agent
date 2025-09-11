@@ -6,7 +6,7 @@ Health check endpoints
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Dict, Any
 import os
-from api.dependencies import get_supabase_config, get_openai_config
+from ...dependencies import get_supabase_config, get_openai_config
 
 router = APIRouter(prefix="/health", tags=["health"])
 

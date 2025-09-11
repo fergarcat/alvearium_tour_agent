@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain.chains import LLMChain
 from langchain.chains.router import MultiPromptChain
-from app.services.prompt_templates import GENERAL_PROMPT, PROMPT_INFOS
+from .prompt_templates import GENERAL_PROMPT, PROMPT_INFOS
 
 # -----------------------------
 # 1. Load environment variables
