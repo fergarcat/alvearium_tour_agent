@@ -363,9 +363,14 @@ Consulta del usuario: {input}
         """Главный метод обработки запросов от RouterAgent с Pydantic + Function Calling"""
         try:
             print(f"🎯 ActivitiesAgent: Обработка запроса с Pydantic + Function Calling")
+            print(f"📥 ActivitiesAgent: Получены данные: {list(request_data.keys())}")
             
             profile = request_data.get('profile', {})
             query = request_data.get('query', 'planificar actividades')
+            
+            print(f"📝 ActivitiesAgent: Query: {query}")
+            print(f"👨‍👩‍👧‍👦 ActivitiesAgent: Profile type: {type(profile)}")
+            print(f"📊 ActivitiesAgent: Profile keys: {list(profile.keys()) if isinstance(profile, dict) else 'Not a dict'}")
             
             # Извлекаем данные профиля
             kids_ages = profile.get('kids_ages', []) if isinstance(profile, dict) else getattr(profile, 'kids_ages', [])
@@ -452,6 +457,27 @@ Consulta del usuario: {input}
                 if not structured_data:
                     print(f"⚠️ ActivitiesAgent: Нет структурированных данных, создаем минимальные данные")
                     activities_text = "No se pudieron obtener actividades. Verifique la conexión a las API."
+                
+                # Проверяем, что activities_text не пустой
+                if not activities_text or activities_text.strip() == "":
+                    print(f"⚠️ ActivitiesAgent: activities_text пустой, создаем fallback")
+                    activities_text = f"""🎯 **Recomendaciones de Actividades para {context.get('kids_ages', [])} años**
+
+**Perfil Familiar:**
+• Edades de los niños: {context.get('kids_ages', [])}
+• Número de adultos: {context.get('adults_count', 2)}
+• Intereses: {', '.join(context.get('interests', [])) if context.get('interests') else 'No especificados'}
+• País de origen: {context.get('origin_country', 'No especificado')}
+• Presupuesto: {context.get('budget_level', 'medium')}
+• Fechas de viaje: {context.get('travel_dates', 'No especificadas')}
+
+**Recomendaciones personalizadas:**
+- Actividades apropiadas para las edades: {context.get('kids_ages', [])}
+- Intereses: {', '.join(context.get('interests', [])) if context.get('interests') else 'No especificados'}
+- Necesidades especiales: {', '.join(context.get('special_needs', [])) if context.get('special_needs') else 'Ninguna'}
+- Presupuesto: {context.get('budget_level', 'medium')}
+
+[Заглушка - агент активностей с контекстом]"""
                     # Создаем минимальные структурированные данные
                     from app.models.activities_models import BudgetEstimate
                     structured_data = ActivitiesResponse(
@@ -470,6 +496,9 @@ Consulta del usuario: {input}
                     )
                 
                 # Создаем результат с Pydantic валидацией
+                print(f"📝 ActivitiesAgent: activities_text длина: {len(activities_text)}")
+                print(f"📝 ActivitiesAgent: activities_text превью: {activities_text[:200]}...")
+                
                 agent_result = ActivitiesAgentResult(
                     agent_name="activities",
                     status="success",
@@ -485,7 +514,9 @@ Consulta del usuario: {input}
                     }
                 )
                 
-                return agent_result.dict()
+                result_dict = agent_result.dict()
+                print(f"📤 ActivitiesAgent: Возвращаем результат с ключами: {list(result_dict.keys())}")
+                return result_dict
 
             except Exception as agent_error:
                 print(f"⚠️ ActivitiesAgent: Ошибка агента: {agent_error}")
@@ -1075,23 +1106,23 @@ Pregunta del usuario: {input}
             if response.status_code == 200:
                 data = response.json()
                 weather_data = {
-                "date": date,
+                    "date": date,
                     "temperature": f"{data['main']['temp']:.1f}°C",
                     "condition": data['weather'][0]['description'].title(),
                     "humidity": f"{data['main']['humidity']}%",
                     "wind": f"{data['wind']['speed']} m/s",
                     "recommendation": self._get_weather_recommendation(data['main']['temp'], data['weather'][0]['main'])
-            }
-            
-            return json.dumps({
-                "status": "success",
+                }
+                
+                return json.dumps({
+                    "status": "success",
                     "weather": weather_data
                 })
             else:
                 return json.dumps({
                     "status": "error",
                     "error": f"Weather API error: {response.status_code}"
-            })
+                })
             
         except Exception as e:
             return json.dumps({
@@ -1155,12 +1186,12 @@ Pregunta del usuario: {input}
                     }
                     events.append(event_data)
             
-            return json.dumps({
-                "status": "success",
+                return json.dumps({
+                    "status": "success",
                     "events": events,
-                "query": query,
-                "date": date
-            })
+                    "query": query,
+                    "date": date
+                })
             else:
                 return json.dumps({
                     "status": "error",

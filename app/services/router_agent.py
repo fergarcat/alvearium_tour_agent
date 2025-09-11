@@ -40,10 +40,15 @@ class RouterAgent:
     def _init_activities_agent(self):
         """Инициализирует ActivitiesAgent"""
         try:
+            print("🔧 RouterAgent: Инициализация ActivitiesAgent...")
             from services.activities_agent import create_activities_agent
-            return create_activities_agent()
+            agent = create_activities_agent()
+            print(f"✅ RouterAgent: ActivitiesAgent успешно инициализирован: {type(agent)}")
+            return agent
         except Exception as e:
-            print(f"⚠️ RouterAgent: Не удалось инициализировать ActivitiesAgent: {e}")
+            print(f"❌ RouterAgent: Ошибка инициализации ActivitiesAgent: {e}")
+            import traceback
+            print(f"📋 Детали ошибки: {traceback.format_exc()}")
             return None
     
     def process_routing_data(self, routing_data: Dict) -> str:
@@ -139,8 +144,41 @@ class RouterAgent:
             print(f"   • Budget level: {profile.get('budget_level', 'No especificado')}")
         
         # Если это агент активностей, используем реальный ActivitiesAgent
-        if agent_name == "activities" and self.specialized_agents["activities"]:
-            return self.specialized_agents["activities"].process_request(routing_data)
+        if agent_name == "activities":
+            if self.specialized_agents["activities"]:
+                print(f"✅ RouterAgent: Используем реальный ActivitiesAgent")
+                try:
+                    result = self.specialized_agents["activities"].process_request(routing_data)
+                    print(f"✅ RouterAgent: ActivitiesAgent вернул результат типа {type(result)}")
+                    
+                    # ActivitiesAgent возвращает словарь, нужно извлечь текстовую часть
+                    if isinstance(result, dict):
+                        print(f"📊 RouterAgent: Ключи в результате: {list(result.keys())}")
+                        
+                        # Ищем текстовую часть в разных возможных полях
+                        activities_text = result.get("activities_text", "")
+                        if not activities_text:
+                            # Попробуем найти в structured_data
+                            structured_data = result.get("structured_data", {})
+                            if isinstance(structured_data, dict):
+                                activities_text = structured_data.get("activities_text", "")
+                        
+                        if activities_text:
+                            print(f"✅ RouterAgent: Извлечен текст активностей длиной {len(activities_text)} символов")
+                            return activities_text
+                        else:
+                            print(f"⚠️ RouterAgent: Нет текста активностей в результате, возвращаем весь результат")
+                            return str(result)
+                    else:
+                        print(f"✅ RouterAgent: Возвращаем результат как есть")
+                        return str(result)
+                except Exception as e:
+                    print(f"❌ RouterAgent: Ошибка в ActivitiesAgent: {e}")
+                    import traceback
+                    print(f"📋 Детали ошибки: {traceback.format_exc()}")
+                    # Fallback к заглушке при ошибке
+            else:
+                print(f"⚠️ RouterAgent: ActivitiesAgent не инициализирован, используем заглушку")
         query = routing_data.get("query", "")
         
         # Формируем контекст с полной информацией о семье
