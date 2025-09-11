@@ -438,7 +438,9 @@ Empecemos con la primera pregunta:
                 return self._process_sequential_response(query, user_id)
     
             # 3. Если есть профиль, работаем как обычно
-            query_analysis = self._analyze_query(query, user_id, profile)
+            # Сначала получаем полный профиль с датами
+            full_profile = self._get_full_family_profile_via_api(user_id)
+            query_analysis = self._analyze_query(query, user_id, full_profile)
             print(f"   Анализ запроса: {query_analysis}")
             
             # 3.1. Если нужны специализированные агенты, передаем в RouterAgent
@@ -617,7 +619,7 @@ Empecemos con la primera pregunta:
             return None
         return profile
     
-    def _analyze_query(self, query: str, family_id: str, profile: FamilyProfileSupabase) -> Dict:
+    def _analyze_query(self, query: str, family_id: str, profile) -> Dict:
         """Анализирует запрос для определения стратегии обработки"""
         query_lower = query.lower()
         
@@ -630,7 +632,10 @@ Empecemos con la primera pregunta:
             "is_planning": any(word in query_lower for word in ["planificar", "viaje", "madrid", "recomendar"]),
             "needs_multi_agent": False,
             "family_id": family_id,
-            "profile_complete": bool(profile and profile.kids_ages and profile.adults_count > 0)
+            "profile_complete": bool(profile and (
+                (isinstance(profile, dict) and profile.get('kids_ages') and profile.get('adults_count', 0) > 0) or
+                (hasattr(profile, 'kids_ages') and profile.kids_ages and profile.adults_count > 0)
+            ))
         }
         
         # Определяем общий тип запроса
@@ -726,35 +731,36 @@ Empecemos con la primera pregunta:
         Подготавливает данные для RouterAgent
         
         Workflow:
-        1. Собирает профиль семьи
+        1. Вызывает API endpoint для получения полного профиля с датами
         2. Анализирует запрос
         3. Подготавливает структурированные данные для маршрутизации
         """
         try:
             print(f"🔍 PersonalizationReactAgent: Подготовка данных для маршрутизации")
             
-            # 1. Получаем профиль семьи
-            profile = self.get_family_profile(family_id)
+            # 1. Получаем полный профиль через API endpoint
+            full_profile = self._get_full_family_profile_via_api(family_id)
+            print(f"📊 PersonalizationReactAgent: Получен профиль: {type(full_profile)}")
+            print(f"   • Kids ages: {full_profile.get('kids_ages', [])}")
+            print(f"   • Start date: {full_profile.get('start_date', 'No especificada')}")
+            print(f"   • End date: {full_profile.get('end_date', 'No especificada')}")
             
-            # 2. Анализируем запрос (только если есть профиль)
-            if profile:
-                query_analysis = self._analyze_query(query, family_id, profile)
-            else:
-                query_analysis = {"query_type": "general", "is_planning": False}
+            # 2. Анализируем запрос
+            query_analysis = self._analyze_query(query, family_id, full_profile)
             
             # 3. Подготавливаем данные для RouterAgent
             routing_data = {
                 "query": query,
                 "family_id": family_id,
                 "profile": {
-                    "kids_ages": profile.kids_ages,
-                    "adults_count": profile.adults_count,
-                    "budget_level": getattr(profile, 'budget_level', 'medium') if hasattr(profile, 'budget_level') else 'medium',
-                    "interests": profile.interests,
-                    "special_needs": profile.special_needs,
-                    "language_preference": profile.language_preference,
-                    "start_date": getattr(profile, 'start_date', '2024-12-01') if hasattr(profile, 'start_date') else '2024-12-01',
-                    "end_date": getattr(profile, 'end_date', '2024-12-05') if hasattr(profile, 'end_date') else '2024-12-05'
+                    "kids_ages": full_profile.get('kids_ages', []),
+                    "adults_count": full_profile.get('adults_count', 0),
+                    "budget_level": full_profile.get('budget_level', 'medium'),
+                    "interests": full_profile.get('interests', []),
+                    "special_needs": full_profile.get('special_needs', []),
+                    "language_preference": full_profile.get('language_preference', 'es'),
+                    "start_date": full_profile.get('start_date', '2024-12-01'),
+                    "end_date": full_profile.get('end_date', '2024-12-05')
                 },
                 "query_analysis": query_analysis,
                 "needs_hotels": query_analysis.get("needs_hotels", False),
@@ -766,6 +772,23 @@ Empecemos con la primera pregunta:
             }
             
             print(f"✅ Данные подготовлены для RouterAgent: {routing_data['query_type']}")
+            print(f"📤 PersonalizationReactAgent ПЕРЕДАЕТ RouterAgent:")
+            print(f"   • Query: {routing_data['query']}")
+            print(f"   • Family ID: {routing_data['family_id']}")
+            print(f"   • Profile data:")
+            profile_data = routing_data['profile']
+            print(f"     - Kids ages: {profile_data.get('kids_ages', [])}")
+            print(f"     - Adults count: {profile_data.get('adults_count', 0)}")
+            print(f"     - Interests: {profile_data.get('interests', [])}")
+            print(f"     - Special needs: {profile_data.get('special_needs', [])}")
+            print(f"     - Language: {profile_data.get('language_preference', 'es')}")
+            print(f"     - Budget level: {profile_data.get('budget_level', 'No especificado')}")
+            print(f"     - Start date: {profile_data.get('start_date', 'No especificada')}")
+            print(f"     - End date: {profile_data.get('end_date', 'No especificada')}")
+            print(f"   • Query analysis: {routing_data.get('query_analysis', {})}")
+            print(f"   • Needs multi-agent: {routing_data.get('needs_multi_agent', False)}")
+            print(f"   • Agents needed: {[k for k, v in routing_data.items() if k.startswith('needs_') and v]}")
+            print(f"   • Query type: {routing_data.get('query_type', 'general')}")
             return routing_data
             
         except Exception as e:
@@ -783,6 +806,87 @@ Empecemos con la primera pregunta:
                 "query_type": "general"
             }
     
+    def _get_full_family_profile_via_api(self, family_id: str) -> Dict:
+        """Получает полный профиль семьи через API endpoint"""
+        try:
+            import requests
+            import os
+            
+            # Получаем базовый URL API
+            base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
+            api_url = f"{base_url}/api/v1/agents/families/{family_id}/profile"
+            
+            print(f"🌐 PersonalizationReactAgent: Загружаем полный профиль через API: {api_url}")
+            
+            # Вызываем API endpoint
+            response = requests.get(api_url, timeout=10)
+            
+            if response.status_code == 200:
+                profile_data = response.json()
+                print(f"✅ PersonalizationReactAgent: Профиль загружен: {profile_data.get('start_date')} - {profile_data.get('end_date')}")
+                return profile_data
+            else:
+                print(f"⚠️ PersonalizationReactAgent: API вернул статус {response.status_code}")
+                return self._get_fallback_profile(family_id)
+                
+        except Exception as e:
+            print(f"❌ PersonalizationReactAgent: Ошибка загрузки через API: {e}")
+            return self._get_fallback_profile(family_id)
+    
+    def _get_fallback_profile(self, family_id: str) -> Dict:
+        """Создает fallback профиль если API недоступен"""
+        try:
+            # Пытаемся загрузить через модель как fallback
+            profile = self.get_family_profile(family_id)
+            if profile:
+                # Загружаем данные поездки через модель
+                travel_data = profile.load_travel_dates(family_id)
+                print(f"📅 PersonalizationReactAgent: Fallback загружены даты: {travel_data.get('start_date')} - {travel_data.get('end_date')}")
+                return {
+                    "family_id": profile.family_id,
+                    "kids_ages": profile.kids_ages,
+                    "adults_count": profile.adults_count,
+                    "budget_level": travel_data.get('budget_level', 'medium'),
+                    "start_date": travel_data.get('start_date', '2024-12-01'),
+                    "end_date": travel_data.get('end_date', '2024-12-05'),
+                    "interests": profile.interests,
+                    "special_needs": profile.special_needs or [],
+                    "language_preference": profile.language_preference,
+                    "accommodation_type": profile.accommodation_type,
+                    "transportation_preference": profile.transportation_preference
+                }
+            else:
+                # Если профиль не найден, возвращаем дефолтные значения
+                print(f"⚠️ PersonalizationReactAgent: Профиль не найден, используем дефолтные значения")
+                return {
+                    "family_id": family_id,
+                    "kids_ages": [],
+                    "adults_count": 0,
+                    "budget_level": "medium",
+                    "start_date": "2024-12-01",
+                    "end_date": "2024-12-05",
+                    "interests": [],
+                    "special_needs": [],
+                    "language_preference": "es",
+                    "accommodation_type": "",
+                    "transportation_preference": ""
+                }
+        except Exception as e:
+            print(f"❌ PersonalizationReactAgent: Ошибка fallback профиля: {e}")
+            return {
+                "family_id": family_id,
+                "kids_ages": [],
+                "adults_count": 0,
+                "budget_level": "medium",
+                "start_date": "2024-12-01",
+                "end_date": "2024-12-05",
+                "interests": [],
+                "special_needs": [],
+                "language_preference": "es",
+                "accommodation_type": "",
+                "transportation_preference": ""
+            }
+
     def get_agent_capabilities(self) -> List[str]:
         """Возвращает список возможностей агента"""
         return [
@@ -792,7 +896,8 @@ Empecemos con la primera pregunta:
             "Анализ потребностей семьи",
             "Создание AI профилей",
             "Интерактивный сбор данных",
-            "Подготовка данных для маршрутизации"
+            "Подготовка данных для маршрутизации",
+            "Загрузка полного профиля через API"
         ]
     
     def _process_with_sequential_agent(self, query: str, user_id: str) -> str:

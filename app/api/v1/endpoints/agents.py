@@ -220,13 +220,16 @@ async def get_family_profile(
                 detail=f"Family profile for {family_id} not found"
             )
         
+        # Загружаем данные поездки из travel_requests
+        travel_data = profile.load_travel_dates(family_id)
+        
         return {
             "family_id": profile.family_id,
             "kids_ages": profile.kids_ages,
             "adults_count": profile.adults_count,
-            "budget_level": "medium",  # Дефолтное значение
-            "start_date": "2024-12-01",  # Дефолтная дата
-            "end_date": "2024-12-05",    # Дефолтная дата
+            "budget_level": travel_data.get('budget_level', 'medium'),
+            "start_date": travel_data.get('start_date', '2024-12-01'),
+            "end_date": travel_data.get('end_date', '2024-12-05'),
             "interests": profile.interests,
             "origin_country": profile.origin_country,
             "special_needs": profile.special_needs or [],

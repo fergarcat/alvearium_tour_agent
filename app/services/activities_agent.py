@@ -373,18 +373,22 @@ Consulta del usuario: {input}
             interests = profile.get('interests', []) if isinstance(profile, dict) else getattr(profile, 'interests', [])
             origin_country = profile.get('origin_country', 'Spain') if isinstance(profile, dict) else getattr(profile, 'origin_country', 'Spain')
             special_needs = profile.get('special_needs', []) if isinstance(profile, dict) else getattr(profile, 'special_needs', [])
-            # budget_level может отсутствовать в FamilyProfileSupabase, используем значение по умолчанию
+            # Загружаем данные поездки
             if isinstance(profile, dict):
+                # Если profile - это словарь от RouterAgent, извлекаем даты напрямую
                 budget_level = profile.get('budget_level', 'medium')
-            else:
-                budget_level = getattr(profile, 'budget_level', 'medium') if hasattr(profile, 'budget_level') else 'medium'
-            # travel_dates также может отсутствовать в FamilyProfileSupabase
-            if isinstance(profile, dict):
-                travel_dates = profile.get('travel_dates', '')
-            else:
-                start_date = getattr(profile, 'start_date', '') if hasattr(profile, 'start_date') else ''
-                end_date = getattr(profile, 'end_date', '') if hasattr(profile, 'end_date') else ''
+                start_date = profile.get('start_date', '')
+                end_date = profile.get('end_date', '')
                 travel_dates = f"{start_date} - {end_date}" if start_date and end_date else ''
+                print(f"📅 ActivitiesAgent: Получены даты от RouterAgent: {travel_dates}")
+            else:
+                # Если profile - это объект FamilyProfileSupabase, загружаем данные поездки
+                travel_data = profile.load_travel_dates(family_id)
+                budget_level = travel_data.get('budget_level', 'medium')
+                start_date = travel_data.get('start_date', '')
+                end_date = travel_data.get('end_date', '')
+                travel_dates = f"{start_date} - {end_date}" if start_date and end_date else ''
+                print(f"📅 ActivitiesAgent: Загружены даты из travel_requests: {travel_dates}")
             
             context = {
                 "input": query,
@@ -1071,24 +1075,24 @@ Pregunta del usuario: {input}
             if response.status_code == 200:
                 data = response.json()
                 weather_data = {
-                    "date": date,
+                "date": date,
                     "temperature": f"{data['main']['temp']:.1f}°C",
                     "condition": data['weather'][0]['description'].title(),
                     "humidity": f"{data['main']['humidity']}%",
                     "wind": f"{data['wind']['speed']} m/s",
                     "recommendation": self._get_weather_recommendation(data['main']['temp'], data['weather'][0]['main'])
-                }
-                
-                return json.dumps({
-                    "status": "success",
+            }
+            
+            return json.dumps({
+                "status": "success",
                     "weather": weather_data
                 })
             else:
                 return json.dumps({
                     "status": "error",
                     "error": f"Weather API error: {response.status_code}"
-                })
-                
+            })
+            
         except Exception as e:
             return json.dumps({
                 "status": "error",
@@ -1150,19 +1154,19 @@ Pregunta del usuario: {input}
                         "age_range": self._get_event_age_range(event, query)
                     }
                     events.append(event_data)
-                
-                return json.dumps({
-                    "status": "success",
+            
+            return json.dumps({
+                "status": "success",
                     "events": events,
-                    "query": query,
-                    "date": date
-                })
+                "query": query,
+                "date": date
+            })
             else:
                 return json.dumps({
                     "status": "error",
                     "error": f"Events API error: {response.status_code}"
                 })
-                
+            
         except Exception as e:
             return json.dumps({
                 "status": "error",

@@ -127,6 +127,17 @@ class RouterAgent:
         profile = routing_data.get("profile", {})
         family_id = routing_data.get("family_id", "unknown")
         
+        # Отладочная информация о передаваемых данных
+        print(f"🔍 RouterAgent: Передаем данные в {agent_name}:")
+        print(f"   • Family ID: {family_id}")
+        print(f"   • Profile type: {type(profile)}")
+        if isinstance(profile, dict):
+            print(f"   • Kids ages: {profile.get('kids_ages', [])}")
+            print(f"   • Adults count: {profile.get('adults_count', 0)}")
+            print(f"   • Start date: {profile.get('start_date', 'No especificada')}")
+            print(f"   • End date: {profile.get('end_date', 'No especificada')}")
+            print(f"   • Budget level: {profile.get('budget_level', 'No especificado')}")
+        
         # Если это агент активностей, используем реальный ActivitiesAgent
         if agent_name == "activities" and self.specialized_agents["activities"]:
             return self.specialized_agents["activities"].process_request(routing_data)

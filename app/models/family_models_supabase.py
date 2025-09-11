@@ -285,6 +285,45 @@ class FamilyProfileSupabase:
             print(f"❌ Ошибка обновления в Supabase: {e}")
             return False
     
+    def load_travel_dates(self, family_id: str) -> Dict[str, str]:
+        """Загружает даты поездки и бюджет из travel_requests"""
+        if not self._supabase:
+            print("❌ Supabase клиент не инициализирован")
+            return {"budget_level": "medium", "start_date": "2024-12-01", "end_date": "2024-12-05"}
+        
+        try:
+            # Получаем UUID семьи
+            family_result = self._supabase.table("families").select("id").eq("family_id", family_id).execute()
+            
+            if not family_result.data:
+                print(f"❌ Семья с ID {family_id} не найдена")
+                return {"budget_level": "medium", "start_date": "2024-12-01", "end_date": "2024-12-05"}
+            
+            family_uuid = family_result.data[0]["id"]
+            
+            # Получаем последний travel_request
+            travel_result = self._supabase.table("travel_requests").select("*").eq("family_id", family_uuid).order("created_at", desc=True).limit(1).execute()
+            
+            if travel_result.data:
+                travel_data = travel_result.data[0]
+                budget_level = travel_data.get("budget_level", "medium")
+                start_date = travel_data.get("arrival_date", "2024-12-01")
+                end_date = travel_data.get("departure_date", "2024-12-05")
+                
+                print(f"📅 Загружены даты поездки: {start_date} - {end_date}, бюджет: {budget_level}")
+                return {
+                    "budget_level": budget_level,
+                    "start_date": start_date,
+                    "end_date": end_date
+                }
+            else:
+                print(f"⚠️ Данные поездки не найдены для семьи {family_id}, используются дефолтные")
+                return {"budget_level": "medium", "start_date": "2024-12-01", "end_date": "2024-12-05"}
+                
+        except Exception as e:
+            print(f"❌ Ошибка загрузки дат поездки: {e}")
+            return {"budget_level": "medium", "start_date": "2024-12-01", "end_date": "2024-12-05"}
+
     def create_ai_profile(self, ai_analysis: Dict[str, Any]) -> Optional[str]:
         """Создает AI профиль семьи"""
         if not self._supabase:
