@@ -1,53 +1,30 @@
-# create_trip.py
+# services/create_trip.py
 import json
 import time
 from typing import Optional
 from crewai import Crew
-from app.services.agents import (
+from .agents import (
     hotel_agent,
     restaurant_agent,
     activities_agent,
     transport_agent,
     itinerary_agent
 )
-from app.services.tasks import (
+from .tasks import (
     hotel_task,
     restaurant_task,
     activities_task,
     transport_task,
-    itinerary_task
+    itinerary_task,
+    get_rag_context
 )
-
-# -----------------------------
-# Create Crew
-# -----------------------------
-crew = Crew(
-    name="Trip Planning Crew",
-    agents=[
-        hotel_agent,
-        restaurant_agent,
-        activities_agent,
-        transport_agent,
-        itinerary_agent
-    ],
-    tasks=[
-        hotel_task,
-        restaurant_task,
-        activities_task,
-        transport_task,
-        itinerary_task
-    ],
-    verbose=False
-)
+from . import get_vectorstore, initialize_rag_system
 
 # -----------------------------
 # Rate limit handling utilities
 # -----------------------------
 def extract_wait_time_from_error(error_msg: str) -> Optional[int]:
-    """
-    Extract the suggested wait time from the rate limit error message.
-    Returns wait time in milliseconds, or None if not found.
-    """
+    """Extract wait time from rate limit error message."""
     try:
         import re
         pattern = r'Please try again in (\d+)ms'
@@ -65,9 +42,7 @@ def extract_wait_time_from_error(error_msg: str) -> Optional[int]:
     return None
 
 def execute_with_retry(operation, max_retries=5, initial_delay=1000, backoff_factor=2):
-    """
-    Execute an operation with retry logic for rate limiting.
-    """
+    """Execute operation with retry logic for rate limiting."""
     for attempt in range(max_retries + 1):
         try:
             return operation()
@@ -90,33 +65,102 @@ def execute_with_retry(operation, max_retries=5, initial_delay=1000, backoff_fac
     raise Exception(f"Operation failed after {max_retries + 1} attempts due to rate limiting")
 
 # -----------------------------
-# Create trip function with rate limiting
+# Create Crew with proper template variables
+# -----------------------------
+def create_crew_with_rag(conversation_state: dict):
+    """Create crew with properly formatted inputs for template variables"""
+    
+    # Try to get RAG context, but fall back gracefully if not available
+    rag_contexts = {
+        'hotels': "",
+        'restaurants': "",
+        'activities': "",
+        'transportation': "",
+        'general': ""
+    }
+    
+    # Only try to get RAG context if the system is initialized
+    vectorstore = get_vectorstore()
+    if vectorstore:
+        try:
+            rag_contexts = {
+                'hotels': get_rag_context("family friendly hotels Madrid children"),
+                'restaurants': get_rag_context("family restaurants Madrid children friendly"),
+                'activities': get_rag_context("activities Madrid children family"),
+                'transportation': get_rag_context("transportation Madrid family children"),
+                'general': get_rag_context("Madrid tourism family children guide")
+            }
+        except Exception as e:
+            print(f"⚠️  Error getting RAG context: {e}")
+    
+    # Create the inputs dictionary with all template variables
+    inputs = {
+        'input': conversation_state,  # This provides {input} for template variables
+        'rag_context': rag_contexts['general'],
+        'rag_hotels': rag_contexts['hotels'],
+        'rag_restaurants': rag_contexts['restaurants'],
+        'rag_activities': rag_contexts['activities'],
+        'rag_transportation': rag_contexts['transportation']
+    }
+    
+    # Also add individual conversation state fields for direct access
+    inputs.update(conversation_state)
+    
+    return Crew(
+        name="Trip Planning Crew with RAG",
+        agents=[
+            hotel_agent,
+            restaurant_agent,
+            activities_agent,
+            transport_agent,
+            itinerary_agent
+        ],
+        tasks=[
+            hotel_task,
+            restaurant_task,
+            activities_task,
+            transport_task,
+            itinerary_task
+        ],
+        verbose=False
+    ), inputs
+
+# -----------------------------
+# Create trip function with RAG (graceful fallback)
 # -----------------------------
 def create_trip(conversation_state: dict) -> str:
-    """
-    Orchestrates trip planning and returns formatted itinerary text for web display.
-    """
+    """Orchestrates trip planning with RAG context and returns formatted itinerary."""
     try:
+        # Try to get the vectorstore, initialize if not available
+        vectorstore = get_vectorstore()
+        if not vectorstore:
+            print("⏳ RAG system not initialized, attempting to initialize...")
+            vectorstore = initialize_rag_system()
+            if not vectorstore:
+                print("⚠️  RAG system could not be initialized, continuing without RAG context")
+        
+        # Create crew with properly formatted inputs (will work even without RAG)
+        crew, inputs = create_crew_with_rag(conversation_state)
+        
         def kickoff_operation():
-            return crew.kickoff(inputs={"input": conversation_state})
+            return crew.kickoff(inputs=inputs)
         
         crew_results = execute_with_retry(kickoff_operation)
-        crew_dict = crew_results.dict()
         
         itinerary_text = ""
 
-        # Process tasks_output to find the itinerary text
+        # Extract itinerary text from results
         if hasattr(crew_results, 'tasks_output') and crew_results.tasks_output:
-            for i, task_output in enumerate(crew_results.tasks_output):
+            for task_output in enumerate(crew_results.tasks_output):
                 try:
                     if hasattr(task_output, 'dict'):
                         task_dict = task_output.dict()
                     elif isinstance(task_output, dict):
                         task_dict = task_output
                     else:
-                        task_dict = {}
+                        continue
                     
-                    agent_name = task_dict.get('agent', f'Agent_{i}')
+                    agent_name = task_dict.get('agent', '')
                     raw_output = task_dict.get('raw', '')
                     
                     if agent_name == 'Itinerary Agent' and raw_output:
@@ -125,36 +169,19 @@ def create_trip(conversation_state: dict) -> str:
                     
                 except Exception:
                     continue
-        
-        # If not found in tasks_output, try crew_dict
-        elif 'tasks_output' in crew_dict and isinstance(crew_dict['tasks_output'], list):
-            for i, task_data in enumerate(crew_dict['tasks_output']):
-                if isinstance(task_data, dict):
-                    agent_name = task_data.get('agent', f'Agent_{i}')
-                    raw_output = task_data.get('raw', '')
-                    
-                    if agent_name == 'Itinerary Agent' and raw_output:
-                        itinerary_text = raw_output
-                        break
 
-        # If still not found, try raw output
+        # Fallback to raw output
         if not itinerary_text and hasattr(crew_results, 'raw'):
             itinerary_text = crew_results.raw
 
-        # Clean up the text if it contains JSON artifacts
-        if itinerary_text:
-            # Remove any JSON wrapping if present
-            if itinerary_text.strip().startswith('{') and '"itinerary":' in itinerary_text:
-                try:
-                    json_data = json.loads(itinerary_text)
-                    if isinstance(json_data, dict) and 'itinerary' in json_data:
-                        # Convert JSON itinerary to formatted text
-                        itinerary_text = format_itinerary_from_json(json_data['itinerary'])
-                    elif isinstance(json_data, list):
-                        itinerary_text = format_itinerary_from_json(json_data)
-                except json.JSONDecodeError:
-                    # If it's not valid JSON, keep as text
-                    pass
+        # Clean JSON artifacts if present
+        if itinerary_text and itinerary_text.strip().startswith('{') and '"itinerary":' in itinerary_text:
+            try:
+                json_data = json.loads(itinerary_text)
+                if isinstance(json_data, dict) and 'itinerary' in json_data:
+                    itinerary_text = format_itinerary_from_json(json_data['itinerary'])
+            except json.JSONDecodeError:
+                pass
 
         return itinerary_text or "No itinerary could be generated. Please try again."
 
@@ -162,9 +189,7 @@ def create_trip(conversation_state: dict) -> str:
         return f"Error generating itinerary: {str(e)}"
 
 def format_itinerary_from_json(itinerary_data: list) -> str:
-    """
-    Convert JSON itinerary data to formatted text.
-    """
+    """Convert JSON itinerary data to formatted text."""
     if not isinstance(itinerary_data, list):
         return str(itinerary_data)
     
@@ -196,9 +221,8 @@ def format_itinerary_from_json(itinerary_data: list) -> str:
     return formatted_text
 
 # -----------------------------
-# Example usage (commented out)
+# Main execution
 # -----------------------------
-
 if __name__ == "__main__":
     conversation_state_example = {
         "adults": "2",

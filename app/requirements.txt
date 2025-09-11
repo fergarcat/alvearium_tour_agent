@@ -32,5 +32,8 @@ pypdf
 beautifulsoup4
 gdown
 tavily-python
-
+gdown
+pypdf2
+langchain-huggingface
+sentence-transformers
 
