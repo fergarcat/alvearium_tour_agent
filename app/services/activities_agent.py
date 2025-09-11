@@ -130,67 +130,183 @@ class ActivitiesAgent:
         """Создает расширенные инструменты с API вызовами"""
         tools = []
         
-        # Добавляем API инструменты
+        # Добавляем API инструменты (ПРИОРИТЕТ 1)
         if self.api_services["google_places"]:
             tools.append(Tool(
                 name="search_places_api",
-                description="""Поиск мест через Google Places API.
-                Используй когда нужно найти конкретные места в Мадриде.
+                description="""[ПРИОРИТЕТ 1] Поиск мест через Google Places API.
+                ОБЯЗАТЕЛЬНО используй ПЕРВЫМ для поиска мест в Мадриде.
                 Входные параметры: query (поисковый запрос), place_type (тип места)
-                Пример: search_places_api("museos para niños", "museum")""",
+                Формат: search_places_api("museos para niños", "museum")
+                Возвращает: список мест с рейтингами, ценами, типами""",
                 func=self._search_places_api
             ))
             
             tools.append(Tool(
                 name="get_place_details_api",
-                description="""Получение детальной информации о месте.
-                Используй когда нужно узнать больше о конкретном месте.
-                Входные параметры: place_id (ID места)
-                Пример: get_place_details_api("ChIJN1t_tDeuEmsRUsoyG83frY4")""",
+                description="""[ПРИОРИТЕТ 1] Получение детальной информации о месте.
+                Используй ПОСЛЕ search_places_api для получения полной информации.
+                Входные параметры: place_id (ID места из search_places_api)
+                Формат: get_place_details_api("ChIJN1t_tDeuEmsRUsoyG83frY4")
+                Возвращает: детали, часы работы, отзывы, контакты""",
                 func=self._get_place_details_api
             ))
         
         if self.api_services["weather"]:
             tools.append(Tool(
                 name="check_weather_api",
-                description="""Проверка погоды в Мадриде.
-                Используй когда нужно учесть погодные условия.
-                Входные параметры: date (дата)
-                Пример: check_weather_api("2024-01-15")""",
+                description="""[ПРИОРИТЕТ 1] Проверка погоды в Мадриде.
+                ОБЯЗАТЕЛЬНО используй для рекомендации активностей на улице.
+                Входные параметры: date (дата в формате YYYY-MM-DD)
+                Формат: check_weather_api("2024-01-15")
+                Возвращает: температуру, условия, рекомендации""",
                 func=self._check_weather_api
             ))
         
         if self.api_services["events"]:
             tools.append(Tool(
                 name="search_events_api",
-                description="""Поиск событий и мероприятий.
-                Используй когда нужно найти временные события.
+                description="""[ПРИОРИТЕТ 1] Поиск событий и мероприятий.
+                Используй для поиска временных событий и мероприятий.
                 Входные параметры: query (поисковый запрос), date (дата)
-                Пример: search_events_api("talleres niños", "2024-01-15")""",
+                Формат: search_events_api("talleres niños", "2024-01-15")
+                Возвращает: события с датами, временем, ценами""",
                 func=self._search_events_api
             ))
         
-        # Добавляем fallback инструмент
+        # Добавляем fallback инструмент (ПРИОРИТЕТ 2 - только если API недоступны)
         tools.append(StructuredTool.from_function(
             func=create_activities_plan,
             name="create_activities_plan",
-            description="Создает план активностей (fallback)",
+            description="""[ПРИОРИТЕТ 2] Создает план активностей (fallback).
+            Используй ТОЛЬКО если API недоступны или не дали результатов.
+            Входные параметры: query, kids_ages, adults_count, interests, budget_level, special_needs, origin_country, travel_dates
+            Формат: create_activities_plan(query="actividades", kids_ages=[8, 12], adults_count=2, interests=["arte"], budget_level="medium", special_needs=[], origin_country="Spain", travel_dates="2024-01-15")
+            Возвращает: структурированный план активностей""",
             return_schema=ActivitiesResponse
         ))
         
         return tools
     
+    def _force_api_usage(self, context: Dict[str, Any]) -> None:
+        """Принудительно проверяет и использует API для получения актуальных данных"""
+        try:
+            print("🔍 ActivitiesAgent: Принудительная проверка API...")
+            
+            # Проверяем доступность API
+            api_available = {
+                "google_places": self.api_services["google_places"] is not None,
+                "weather": self.api_services["weather"] is not None,
+                "events": self.api_services["events"] is not None
+            }
+            
+            print(f"📊 API статус: {api_available}")
+            
+            # Если есть API, добавляем СТРОГИЕ инструкции в контекст
+            if any(api_available.values()):
+                # Создаем персонализированные инструкции с учетом возраста детей
+                kids_ages = context.get('kids_ages', [])
+                travel_dates = context.get('travel_dates', '2024-01-15')
+                input_query = context.get('input', 'actividades para niños')
+                
+                if kids_ages:
+                    age_info = f" para niños de {min(kids_ages)}-{max(kids_ages)} años"
+                    personalized_query = f"{input_query}{age_info}"
+                else:
+                    personalized_query = input_query
+                
+                context["api_instructions"] = f"""
+                🚨 КРИТИЧЕСКИ ВАЖНО: API ДОСТУПНЫ! ОБЯЗАТЕЛЬНО ИСПОЛЬЗУЙ ИХ!
+                
+                ДОСТУПНЫЕ API: {[k for k, v in api_available.items() if v]}
+                👶 ВОЗРАСТ ДЕТЕЙ: {kids_ages}
+                📅 ДАТЫ ПОЕЗДКИ: {travel_dates}
+                
+                ПОРЯДОК ДЕЙСТВИЙ (ОБЯЗАТЕЛЬНО):
+                1. **СНАЧАЛА** вызови search_places_api с запросом "{personalized_query}"
+                2. **ЗАТЕМ** вызови check_weather_api для даты "{travel_dates}"
+                3. **ПОТОМ** вызови search_events_api для поиска событий с учетом возраста
+                4. **ТОЛЬКО ПОСЛЕ** всех API вызовов используй create_activities_plan
+                
+                ЗАПРЕЩЕНО:
+                ❌ Использовать create_activities_plan БЕЗ вызова API
+                ❌ Пропускать API вызовы
+                ❌ Использовать fallback данные
+                ❌ Игнорировать возраст детей в запросах
+                
+                НАЧНИ С: search_places_api("{personalized_query}", "tourist_attraction")
+                """
+                
+                # Добавляем флаг принуждения
+                context["force_api_first"] = True
+                print("🚨 ActivitiesAgent: API принуждение активировано!")
+            else:
+                context["api_instructions"] = """
+                ⚠️ API недоступны, используй create_activities_plan как fallback
+                """
+                context["force_api_first"] = False
+                
+        except Exception as e:
+            print(f"⚠️ Ошибка принудительного использования API: {e}")
+    
+    def _force_api_calls(self, context: Dict[str, Any]) -> None:
+        """Принудительно вызывает API для получения данных"""
+        try:
+            print("🚨 ActivitiesAgent: Принудительный вызов API...")
+            
+            # Извлекаем данные из контекста для персонализации
+            kids_ages = context.get('kids_ages', [])
+            travel_dates = context.get('travel_dates', '2024-01-15')
+            input_query = context.get('input', 'actividades para niños')
+            
+            # Создаем персонализированный запрос с учетом возраста детей
+            if kids_ages:
+                age_info = f" para niños de {min(kids_ages)}-{max(kids_ages)} años"
+                personalized_query = f"{input_query}{age_info}"
+            else:
+                personalized_query = input_query
+            
+            print(f"👶 Персонализированный запрос: {personalized_query}")
+            
+            # Принудительно вызываем Google Places API
+            if self.api_services["google_places"]:
+                print("🔍 Принудительный вызов search_places_api...")
+                places_result = self._search_places_api(personalized_query, "tourist_attraction")
+                print(f"📊 Результат search_places_api: {places_result[:200]}...")
+                
+                # Добавляем результат в контекст
+                context["forced_places_data"] = places_result
+            
+            # Принудительно вызываем Weather API
+            if self.api_services["weather"]:
+                print("🌤️ Принудительный вызов check_weather_api...")
+                # Используем реальные даты поездки
+                weather_date = travel_dates.split(' - ')[0] if ' - ' in travel_dates else travel_dates
+                weather_result = self._check_weather_api(weather_date)
+                print(f"📊 Результат check_weather_api: {weather_result[:200]}...")
+                
+                # Добавляем результат в контекст
+                context["forced_weather_data"] = weather_result
+            
+            # Принудительно вызываем Events API
+            if self.api_services["events"]:
+                print("🎪 Принудительный вызов search_events_api...")
+                # Создаем запрос с учетом возраста детей
+                events_query = f"talleres niños {age_info}" if kids_ages else "talleres niños"
+                events_result = self._search_events_api(events_query, weather_date)
+                print(f"📊 Результат search_events_api: {events_result[:200]}...")
+                
+                # Добавляем результат в контекст
+                context["forced_events_data"] = events_result
+            
+            print("✅ ActivitiesAgent: API принудительно вызваны с учетом возраста детей!")
+            
+        except Exception as e:
+            print(f"⚠️ Ошибка принудительного вызова API: {e}")
+    
     def _create_enhanced_prompt(self) -> PromptTemplate:
-        """Создает расширенный промпт с API возможностями"""
-        template = """Ты эксперт по планированию actividades para familias en Madrid.
-
-Tienes acceso a varias herramientas para obtener información actualizada:
-
-HERRAMIENTAS DISPONIBLES:
-{tools}
-
-NOMBRES DE HERRAMIENTAS:
-{tool_names}
+        """Создает расширенный промпт с API возможностями по схеме ReAct"""
+        template = """Eres un experto agente de actividades familiares en Madrid que sigue el patrón ReAct (Reasoning + Acting).
 
 INFORMACIÓN DE LA FAMILIA:
 - Edades de los niños: {kids_ages}
@@ -199,20 +315,62 @@ INFORMACIÓN DE LA FAMILIA:
 - Presupuesto: {budget_level}
 - Fechas de viaje: {travel_dates}
 
-INSTRUCCIONES:
-1. **ANALIZA** la consulta del usuario
-2. **DECIDE** qué herramientas necesitas usar
-3. **LLAMA** a las herramientas apropiadas para obtener información
-4. **PROCESA** la información obtenida
-5. **COMBINA** los resultados en un plan coherente
-6. **CONSIDERA** el clima, horarios, precios y edad de los niños
+INSTRUCCIONES API:
+{api_instructions}
 
-EJEMPLO DE RAZONAMIENTO:
-- "Necesito encontrar museos para niños de 8 años"
-- "Voy a usar search_places_api para buscar museos"
-- "Ahora voy a obtener detalles de los museos encontrados"
-- "Voy a verificar el clima para recomendar actividades al aire libre"
-- "Voy a buscar eventos especiales para esa fecha"
+DATOS API OBTENIDOS (si están disponibles):
+- Lugares: {forced_places_data}
+- Clima: {forced_weather_data}
+- Eventos: {forced_events_data}
+
+HERRAMIENTAS DISPONIBLES:
+{tools}
+
+NOMBRES DE HERRAMIENTAS:
+{tool_names}
+
+PRIORIDAD DE HERRAMIENTAS (ORDEN OBLIGATORIO):
+1. **PRIMERA PRIORIDAD**: API externas (search_places_api, get_place_details_api, check_weather_api, search_events_api)
+2. **SEGUNDA PRIORIDAD**: create_activities_plan (solo si API no disponibles)
+
+PATRÓN DE RAZONAMIENTO ReAct:
+**Thought**: [Analiza qué necesitas hacer y por qué]
+**Action**: [Nombre de la herramienta a usar]
+**Action Input**: [Parámetros para la herramienta]
+**Observation**: [Resultado de la herramienta]
+**Thought**: [Analiza el resultado y decide el siguiente paso]
+**Action**: [Siguiente herramienta si es necesario]
+**Action Input**: [Parámetros]
+**Observation**: [Resultado]
+**Final Answer**: [Respuesta final estructurada]
+
+REGLAS ESTRICTAS:
+1. **SIEMPRE** intenta usar API externas PRIMERO
+2. **NUNCA** uses create_activities_plan si hay API disponibles
+3. **COMBINA** información de múltiples API cuando sea posible
+4. **VERIFICA** clima antes de recomendar actividades al aire libre
+5. **BUSCA** eventos específicos para las fechas de viaje
+6. **OBTÉN** detalles completos de lugares recomendados
+
+🚨 VERIFICACIÓN OBLIGATORIA:
+- Si ves "force_api_first": true, DEBES usar API PRIMERO
+- Si ves "API ДОСТУПНЫ", DEBES usar API PRIMERO
+- NO puedes usar create_activities_plan sin antes llamar a las API
+
+EJEMPLO DE FLUJO CORRECTO:
+**Thought**: Necesito encontrar museos para niños de 8 años en Madrid
+**Action**: search_places_api
+**Action Input**: {{"query": "museos para niños Madrid", "place_type": "museum"}}
+**Observation**: [Resultado de la API]
+**Thought**: Ahora necesito verificar el clima para recomendar actividades
+**Action**: check_weather_api
+**Action Input**: {{"date": "2024-01-15"}}
+**Observation**: [Datos del clima]
+**Thought**: Voy a buscar eventos especiales para esa fecha
+**Action**: search_events_api
+**Action Input**: {{"query": "talleres niños", "date": "2024-01-15"}}
+**Observation**: [Eventos encontrados]
+**Final Answer**: [Plan completo basado en datos reales]
 
 Consulta del usuario: {input}
 
@@ -222,7 +380,8 @@ Consulta del usuario: {input}
             template=template,
             input_variables=[
                 "input", "kids_ages", "adults_count", "interests", 
-                "budget_level", "travel_dates", "tools", "tool_names", "agent_scratchpad"
+                "budget_level", "travel_dates", "api_instructions", "forced_places_data", 
+                "forced_weather_data", "forced_events_data", "tools", "tool_names", "agent_scratchpad"
             ]
         )
     
@@ -261,10 +420,22 @@ Consulta del usuario: {input}
                 "origin_country": origin_country,
                 "special_needs": special_needs,
                 "budget_level": budget_level,
-                "travel_dates": travel_dates
+                "travel_dates": travel_dates,
+                "api_instructions": "",  # Будет заполнено в _force_api_usage
+                "forced_places_data": "",  # Будет заполнено в _force_api_calls
+                "forced_weather_data": "",  # Будет заполнено в _force_api_calls
+                "forced_events_data": ""  # Будет заполнено в _force_api_calls
             }
             
             try:
+                # Проверяем доступность API и принудительно используем их
+                self._force_api_usage(context)
+                
+                # Принудительно вызываем API если они доступны
+                if context.get("force_api_first", False):
+                    print("🚨 ActivitiesAgent: Принудительный вызов API...")
+                    self._force_api_calls(context)
+                
                 # Выполняем агент с Function Calling
                 result = self.agent_executor.invoke(context)
                 
@@ -658,29 +829,41 @@ Consulta del usuario: {input}
             )
     
     def _create_tools(self) -> List[Tool]:
-        """Создает инструменты для агента"""
+        """Создает инструменты для агента с приоритетами"""
         return [
             Tool(
                 name="search_activities",
-                description="Поиск активностей по критериям: возраст, интересы, погода, время",
+                description="""[ПРИОРИТЕТ 2] Поиск активностей по критериям в локальной базе.
+                Используй ТОЛЬКО если API недоступны.
+                Входные параметры: criteria (JSON с критериями поиска)
+                Формат: search_activities('{"age": 8, "interests": ["arte"]}')
+                Возвращает: список подходящих активностей""",
                 func=self._search_activities
             ),
             Tool(
                 name="analyze_age_compatibility",
-                description="Анализ совместимости активностей с возрастными группами детей",
+                description="""[ПРИОРИТЕТ 2] Анализ совместимости активностей с возрастными группами.
+                Используй для дополнительного анализа после получения данных от API.
+                Входные параметры: kids_ages (JSON массив возрастов)
+                Формат: analyze_age_compatibility('[8, 12]')
+                Возвращает: анализ по возрастным группам и рекомендации""",
                 func=self._analyze_age_compatibility
             ),
             Tool(
                 name="optimize_schedule",
-                description="Оптимизация расписания с учетом энергетических пиков детей",
+                description="""[ПРИОРИТЕТ 2] Оптимизация расписания с учетом энергетических пиков.
+                Используй для финальной оптимизации расписания.
+                Входные параметры: schedule_data (JSON с данными расписания)
+                Формат: optimize_schedule('{"activities": [...]}')
+                Возвращает: оптимизированное расписание по времени дня""",
                 func=self._optimize_schedule
             )
         ]
     
     def _create_prompt(self) -> PromptTemplate:
-        """Создает промпт для реакт-агента"""
+        """Создает промпт для реакт-агента по схеме ReAct"""
         return PromptTemplate(
-            template="""Eres un experto agente de actividades familiares en Madrid.
+            template="""Eres un experto agente de actividades familiares en Madrid que sigue el patrón ReAct (Reasoning + Acting).
 
 INFORMACIÓN DE LA FAMILIA:
 - Edades de los niños: {kids_ages}
@@ -697,14 +880,44 @@ HERRAMIENTAS DISPONIBLES:
 NOMBRES DE HERRAMIENTAS:
 {tool_names}
 
-OBJETIVOS:
-1. Buscar actividades apropiadas para cada edad
-2. Crear un horario optimizado
-3. Considerar el clima y la temporada
-4. Incluir valor educativo
-5. Balancear actividades activas y tranquilas
+PRIORIDAD DE HERRAMIENTAS:
+1. **PRIMERA PRIORIDAD**: API externas (search_places_api, get_place_details_api, check_weather_api, search_events_api)
+2. **SEGUNDA PRIORIDAD**: Herramientas internas (search_activities, analyze_age_compatibility, optimize_schedule)
+3. **ÚLTIMA OPCIÓN**: create_activities_plan (solo si no hay otras opciones)
 
-Responde en español y sé específico con horarios y ubicaciones.
+PATRÓN DE RAZONAMIENTO ReAct:
+**Thought**: [Analiza la consulta y determina qué información necesitas]
+**Action**: [Nombre de la herramienta a usar]
+**Action Input**: [Parámetros específicos para la herramienta]
+**Observation**: [Resultado de la herramienta]
+**Thought**: [Evalúa el resultado y decide el siguiente paso]
+**Action**: [Siguiente herramienta si es necesario]
+**Action Input**: [Parámetros]
+**Observation**: [Resultado]
+**Final Answer**: [Respuesta final estructurada]
+
+REGLAS ESTRICTAS:
+1. **SIEMPRE** usa API externas PRIMERO si están disponibles
+2. **COMBINA** información de múltiples fuentes
+3. **VERIFICA** clima para actividades al aire libre
+4. **CONSIDERA** edad específica de los niños
+5. **INCLUYE** horarios y ubicaciones precisas
+6. **BALANCEA** actividades educativas y recreativas
+
+EJEMPLO DE FLUJO:
+**Thought**: Necesito encontrar actividades para niños de 8 y 12 años en Madrid
+**Action**: search_places_api
+**Action Input**: {{"query": "actividades familiares Madrid", "place_type": "tourist_attraction"}}
+**Observation**: [Lugares encontrados]
+**Thought**: Ahora voy a verificar el clima para recomendar actividades apropiadas
+**Action**: check_weather_api
+**Action Input**: {{"date": "2024-01-15"}}
+**Observation**: [Datos del clima]
+**Thought**: Voy a analizar la compatibilidad con las edades de los niños
+**Action**: analyze_age_compatibility
+**Action Input**: {{"kids_ages": [8, 12]}}
+**Observation**: [Análisis de edades]
+**Final Answer**: [Plan personalizado basado en datos reales]
 
 Pregunta del usuario: {input}
 
