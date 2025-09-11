@@ -1,23 +1,290 @@
-# app/services/router_agent.py
+
 """
-Router Agent - распределяет запросы к специализированным агентам
+ReAct Router Agent - использует схему Reasoning → Acting → Observing для принятия решений
 """
 
 import os
-from typing import Dict, List
+import json
+from typing import Dict, List, Any
 from langchain_openai import ChatOpenAI
 from langchain.prompts import PromptTemplate
-from models.family_models import PersonalizedQuery
+from langchain.agents import create_react_agent, AgentExecutor
+from langchain.tools import BaseTool
+from app.models.family_models import PersonalizedQuery
+
+class AnalyzeQueryTool(BaseTool):
+    """Инструмент для интеллектуального анализа запроса пользователя через LLM"""
+    name: str = "analyze_query"
+    description: str = "Анализирует запрос пользователя с помощью LLM и определяет, какие типы агентов нужны (activities, restaurants, hotels, transport)"
+    llm: ChatOpenAI = None
+    
+    def __init__(self):
+        super().__init__()
+        self.llm = ChatOpenAI(
+            openai_api_key=os.getenv("OPENAI_API_KEY"),
+            model="gpt-4o-mini",
+            temperature=0.1
+        )
+    
+    def _run(self, query: str) -> str:
+        """Анализирует запрос с помощью LLM и возвращает JSON с нужными агентами"""
+        try:
+            # Создаем промпт для анализа запроса
+            analysis_prompt = PromptTemplate(
+                template="""Eres un experto analista de consultas de viajes. Analiza la siguiente consulta del usuario y determina qué tipos de servicios necesita.
+
+CONSULTA DEL USUARIO: "{query}"
+
+TIPOS DE SERVICIOS DISPONIBLES:
+1. **activities** - Actividades, museos, parques, talleres, entretenimiento, turismo
+2. **restaurants** - Restaurantes, comida, bares, cafés, gastronomía, donde comer
+3. **hotels** - Hoteles, alojamiento, hospedaje, donde dormir
+4. **transport** - Transporte, cómo llegar, movilidad, metro, autobús, taxi
+
+INSTRUCCIONES:
+- Analiza el CONTENIDO y CONTEXTO de la consulta, no solo palabras clave
+- Considera las intenciones implícitas del usuario
+- Si la consulta es ambigua, considera múltiples opciones
+- Si menciona "plan completo" o "día completo", probablemente necesite múltiples servicios
+
+RESPONDE SOLO EN FORMATO JSON:
+{{
+    "query_type": "activities|restaurants|hotels|transport|combined|general",
+    "analysis": {{
+        "needs_activities": true/false,
+        "needs_restaurants": true/false,
+        "needs_hotels": true/false,
+        "needs_transport": true/false
+    }},
+    "reasoning": "Explicación breve de por qué se eligieron estos servicios",
+    "confidence": 0.0-1.0
+}}
+
+EJEMPLOS:
+- "¿Qué museos puedo visitar?" → {{"query_type": "activities", "needs_activities": true}}
+- "¿Dónde puedo comer bien?" → {{"query_type": "restaurants", "needs_restaurants": true}}
+- "Planifica mi día en Madrid" → {{"query_type": "combined", "needs_activities": true, "needs_restaurants": true}}
+- "¿Cómo llegar al aeropuerto?" → {{"query_type": "transport", "needs_transport": true}}""",
+                input_variables=["query"]
+            )
+            
+            # Вызываем LLM для анализа
+            chain = analysis_prompt | self.llm
+            response = chain.invoke({"query": query})
+            
+            # Парсим JSON ответ
+            try:
+                result = json.loads(response.content)
+                
+                # Валидируем результат
+                if not isinstance(result, dict):
+                    raise ValueError("Respuesta no es un diccionario")
+                
+                if "query_type" not in result:
+                    raise ValueError("Falta query_type en la respuesta")
+                
+                if "analysis" not in result:
+                    raise ValueError("Falta analysis en la respuesta")
+                
+                # Добавляем reasoning если отсутствует
+                if "reasoning" not in result:
+                    result["reasoning"] = f"Analizado con LLM: {result.get('query_type', 'unknown')}"
+                
+                # Добавляем confidence если отсутствует
+                if "confidence" not in result:
+                    result["confidence"] = 0.8
+                
+                print(f"🧠 AnalyzeQueryTool: LLM анализ завершен")
+                print(f"   • Query type: {result.get('query_type')}")
+                print(f"   • Confidence: {result.get('confidence')}")
+                print(f"   • Reasoning: {result.get('reasoning')}")
+                
+                return json.dumps(result, ensure_ascii=False)
+                
+            except json.JSONDecodeError as e:
+                print(f"❌ AnalyzeQueryTool: Ошибка парсинга JSON: {e}")
+                print(f"   • LLM ответ: {response.content}")
+                
+                # Fallback к простому анализу
+                return self._fallback_analysis(query)
+                
+        except Exception as e:
+            print(f"❌ AnalyzeQueryTool: Ошибка LLM анализа: {e}")
+            return self._fallback_analysis(query)
+    
+    def _fallback_analysis(self, query: str) -> str:
+        """Fallback анализ через ключевые слова если LLM не работает"""
+        query_lower = query.lower()
+        
+        analysis = {
+            "needs_activities": any(word in query_lower for word in [
+                "actividad", "actividades", "hacer", "visitar", "turismo", "museo", "museos", 
+                "parque", "parques", "diversión", "entretenimiento", "taller", "talleres", 
+                "excursión", "excursiones", "plan", "planes", "recomendaciones", "atracciones"
+            ]),
+            "needs_restaurants": any(word in query_lower for word in [
+                "comer", "restaurante", "cena", "almuerzo", "desayuno", "desayunar", 
+                "cenar", "almorzar", "comida", "bar", "café", "cafeteria", "mesa", 
+                "reservar mesa", "donde comer", "donde cenar", "donde desayunar", "gastronomía"
+            ]),
+            "needs_hotels": any(word in query_lower for word in [
+                "hotel", "alojamiento", "dormir", "hospedaje", "reservar", "habitación", 
+                "alojarse", "pernoctar", "estancia"
+            ]),
+            "needs_transport": any(word in query_lower for word in [
+                "transporte", "llegar", "moverse", "metro", "autobús", "taxi", "coche", 
+                "caminar", "desplazarse", "viajar", "ir a", "cómo llegar"
+            ])
+        }
+        
+        # Определяем приоритетный тип запроса
+        if analysis["needs_activities"] and analysis["needs_restaurants"]:
+            query_type = "combined"
+        elif analysis["needs_activities"]:
+            query_type = "activities"
+        elif analysis["needs_restaurants"]:
+            query_type = "restaurants"
+        elif analysis["needs_hotels"]:
+            query_type = "hotels"
+        elif analysis["needs_transport"]:
+            query_type = "transport"
+        else:
+            query_type = "general"
+        
+        result = {
+            "query_type": query_type,
+            "analysis": analysis,
+            "reasoning": f"Fallback анализ (ключевые слова): {query_type}",
+            "confidence": 0.6
+        }
+        
+        print(f"⚠️ AnalyzeQueryTool: Используем fallback анализ")
+        return json.dumps(result, ensure_ascii=False)
+    
+    async def _arun(self, query: str) -> str:
+        return self._run(query)
+
+class CallActivitiesAgentTool(BaseTool):
+    """Инструмент для вызова ActivitiesAgent"""
+    name: str = "call_activities_agent"
+    description: str = "Вызывает ActivitiesAgent для получения рекомендаций по активностям"
+    activities_agent: Any = None
+    
+    def __init__(self, activities_agent):
+        super().__init__()
+        self.activities_agent = activities_agent
+    
+    def _run(self, routing_data_json: str) -> str:
+        """Вызывает ActivitiesAgent с данными маршрутизации"""
+        try:
+            routing_data = json.loads(routing_data_json)
+            
+            if not self.activities_agent:
+                return json.dumps({
+                    "success": False,
+                    "error": "ActivitiesAgent не инициализирован",
+                    "fallback": "Используем заглушку для активностей"
+                }, ensure_ascii=False)
+            
+            result = self.activities_agent.process_request(routing_data)
+            
+            # Извлекаем текстовую часть
+            if isinstance(result, dict):
+                activities_text = result.get("activities_text", "")
+                if not activities_text:
+                    structured_data = result.get("structured_data", {})
+                    if isinstance(structured_data, dict):
+                        activities_text = structured_data.get("activities_text", "")
+                
+                return json.dumps({
+                    "success": True,
+                    "agent": "activities",
+                    "result": activities_text or str(result),
+                    "reasoning": "ActivitiesAgent успешно обработал запрос"
+                }, ensure_ascii=False)
+            else:
+                return json.dumps({
+                    "success": True,
+                    "agent": "activities", 
+                    "result": str(result),
+                    "reasoning": "ActivitiesAgent вернул результат"
+                }, ensure_ascii=False)
+                
+        except Exception as e:
+            return json.dumps({
+                "success": False,
+                "error": str(e),
+                "reasoning": f"Ошибка в ActivitiesAgent: {e}"
+            }, ensure_ascii=False)
+    
+    async def _arun(self, routing_data_json: str) -> str:
+        return self._run(routing_data_json)
+
+class CallRestaurantsAgentTool(BaseTool):
+    """Инструмент для вызова RestoranAgent"""
+    name: str = "call_restaurants_agent"
+    description: str = "Вызывает RestoranAgent для получения рекомендаций по ресторанам"
+    restaurants_agent: Any = None
+    
+    def __init__(self, restaurants_agent):
+        super().__init__()
+        self.restaurants_agent = restaurants_agent
+    
+    def _run(self, routing_data_json: str) -> str:
+        """Вызывает RestoranAgent с данными маршрутизации"""
+        try:
+            routing_data = json.loads(routing_data_json)
+            
+            if not self.restaurants_agent:
+                return json.dumps({
+                    "success": False,
+                    "error": "RestoranAgent не инициализирован",
+                    "fallback": "Используем заглушку для ресторанов"
+                }, ensure_ascii=False)
+            
+            result = self.restaurants_agent.process_request(routing_data)
+            
+            # Извлекаем текстовую часть
+            if isinstance(result, dict):
+                restaurant_text = result.get("restaurant_text", "")
+                if not restaurant_text:
+                    structured_data = result.get("structured_data", {})
+                    if isinstance(structured_data, dict):
+                        restaurant_text = structured_data.get("restaurant_text", "")
+                
+                return json.dumps({
+                    "success": True,
+                    "agent": "restaurants",
+                    "result": restaurant_text or str(result),
+                    "reasoning": "RestoranAgent успешно обработал запрос"
+                }, ensure_ascii=False)
+            else:
+                return json.dumps({
+                    "success": True,
+                    "agent": "restaurants",
+                    "result": str(result),
+                    "reasoning": "RestoranAgent вернул результат"
+                }, ensure_ascii=False)
+                
+        except Exception as e:
+            return json.dumps({
+                "success": False,
+                "error": str(e),
+                "reasoning": f"Ошибка в RestoranAgent: {e}"
+            }, ensure_ascii=False)
+    
+    async def _arun(self, routing_data_json: str) -> str:
+        return self._run(routing_data_json)
 
 class RouterAgent:
     """
-    Router Agent - распределяет задачи между специализированными агентами
+    ReAct Router Agent - использует схему Reasoning → Acting → Observing
     
     Ответственность:
     - Получает данные от PersonalizationReactAgent
-    - Анализирует, какие специализированные агенты нужны
-    - Распределяет задачи между агентами
-    - Координирует выполнение
+    - Анализирует запрос через ReAct цикл
+    - Принимает решения о том, какие агенты вызвать
+    - Координирует выполнение и собирает результаты
     """
     
     def __init__(self):
@@ -27,21 +294,67 @@ class RouterAgent:
             temperature=0
         )
         
-        # Специализированные агенты
-        self.specialized_agents = {
-            "hotels": None,      # Агент отелей
-            "restaurants": None, # Агент ресторанов  
-            "activities": self._init_activities_agent(),  # Агент активностей
-            "transport": None    # Агент транспорта
-        }
+        # Инициализируем специализированных агентов
+        self.activities_agent = self._init_activities_agent()
+        self.restaurants_agent = self._init_restaurant_agent()
         
-        print("✅ RouterAgent инициализирован")
+        # Создаем инструменты для ReAct агента
+        self.tools = [
+            AnalyzeQueryTool(),
+            CallActivitiesAgentTool(self.activities_agent),
+            CallRestaurantsAgentTool(self.restaurants_agent)
+        ]
+        
+        # Создаем ReAct агента
+        self.react_agent = self._create_react_agent()
+        
+        print("✅ ReAct RouterAgent инициализирован")
+    
+    def _create_react_agent(self):
+        """Создает ReAct агента с промптом и инструментами"""
+        prompt = PromptTemplate(
+            template="""Eres un RouterAgent experto que analiza consultas de usuarios y decide qué agentes especializados llamar.
+
+Tienes acceso a las siguientes herramientas:
+{tools}
+
+Usa el siguiente formato:
+
+Thought: (razona sobre qué hacer)
+Action: (la acción a tomar, debe ser una de [{tool_names}])
+Action Input: (entrada para la acción)
+Observation: (resultado de la acción)
+... (este Thought/Action/Action Input/Observation puede repetirse N veces)
+Thought: (razono sobre el resultado final)
+Final Answer: (respuesta final al usuario)
+
+IMPORTANTE:
+1. SIEMPRE empieza analizando la consulta con analyze_query
+2. Basándote en el análisis, decide qué agentes especializados llamar
+3. Si necesitas actividades, llama a call_activities_agent
+4. Si necesitas restaurantes, llama a call_restaurants_agent
+5. Puedes llamar múltiples agentes si es necesario
+6. Combina los resultados de manera coherente
+
+Contexto del usuario:
+- Query: {query}
+- Family ID: {family_id}
+- Profile: {profile}
+
+{agent_scratchpad}
+
+¡Comienza analizando la consulta!""",
+            input_variables=["tools", "tool_names", "query", "family_id", "profile", "agent_scratchpad"]
+        )
+        
+        agent = create_react_agent(self.llm, self.tools, prompt)
+        return AgentExecutor(agent=agent, tools=self.tools, verbose=True, max_iterations=5)
     
     def _init_activities_agent(self):
         """Инициализирует ActivitiesAgent"""
         try:
             print("🔧 RouterAgent: Инициализация ActivitiesAgent...")
-            from services.activities_agent import create_activities_agent
+            from app.services.activities_agent import create_activities_agent
             agent = create_activities_agent()
             print(f"✅ RouterAgent: ActivitiesAgent успешно инициализирован: {type(agent)}")
             return agent
@@ -51,444 +364,89 @@ class RouterAgent:
             print(f"📋 Детали ошибки: {traceback.format_exc()}")
             return None
     
+    def _init_restaurant_agent(self):
+        """Инициализирует RestoranAgent"""
+        try:
+            print("🔧 RouterAgent: Инициализация RestoranAgent...")
+            from app.services.restoran_agent import create_restaurant_agent
+            agent = create_restaurant_agent()
+            print(f"✅ RouterAgent: RestoranAgent успешно инициализирован: {type(agent)}")
+            return agent
+        except Exception as e:
+            print(f"❌ RouterAgent: Ошибка инициализации RestoranAgent: {e}")
+            import traceback
+            print(f"📋 Детали ошибки: {traceback.format_exc()}")
+            return None
+    
     def process_routing_data(self, routing_data: Dict) -> str:
         """
-        Главный метод обработки данных от PersonalizationReactAgent
+        Главный метод обработки данных через ReAct агента
         
-        Workflow:
-        1. Анализирует данные от PersonalizationReactAgent
-        2. Определяет, какие специализированные агенты нужны
-        3. Распределяет задачи между агентами
-        4. Возвращает готовый ответ пользователю
+        ReAct Workflow:
+        1. Reasoning: Анализирует запрос и определяет стратегию
+        2. Acting: Вызывает соответствующие инструменты (агенты)
+        3. Observing: Оценивает результаты и принимает решения
+        4. Повторяет цикл до получения полного ответа
         """
         try:
-            print(f"🎯 RouterAgent: Обработка данных маршрутизации")
+            print(f"🧠 ReAct RouterAgent: Начинаю анализ через ReAct цикл")
             print(f"   Query: {routing_data.get('query', '')[:50]}...")
             print(f"   Family ID: {routing_data.get('family_id', 'unknown')}")
             
-            # 1. Анализируем данные
-            needed_agents = self._determine_needed_agents(routing_data)
-            print(f"   Нужные агенты: {needed_agents}")
+            # Подготавливаем контекст для ReAct агента
+            query = routing_data.get('query', '')
+            family_id = routing_data.get('family_id', 'unknown')
+            profile = routing_data.get('profile', {})
             
-            # 2. Если агенты не нужны, возвращаем простой ответ
-            if not needed_agents:
-                return self._create_simple_response_text(routing_data)
+            # Создаем JSON строку для передачи в инструменты
+            routing_data_json = json.dumps(routing_data, ensure_ascii=False)
             
-            # 3. Распределяем задачи между агентами
-            agent_results = self._distribute_tasks(routing_data, needed_agents)
+            # Запускаем ReAct агента
+            print(f"🔄 ReAct RouterAgent: Запуск цикла Reasoning → Acting → Observing")
             
-            # 4. Форматируем финальный ответ для пользователя
-            final_response = self._format_final_response_text(routing_data, agent_results)
+            result = self.react_agent.invoke({
+                "query": query,
+                "family_id": family_id,
+                "profile": json.dumps(profile, ensure_ascii=False),
+                "routing_data": routing_data_json
+            })
             
-            print("✅ RouterAgent: Задачи распределены и выполнены")
-            return final_response
+            print("✅ ReAct RouterAgent: Цикл завершен успешно")
+            return result.get("output", "No se pudo procesar la consulta")
             
         except Exception as e:
-            print(f"❌ RouterAgent: Ошибка обработки: {e}")
+            print(f"❌ ReAct RouterAgent: Ошибка в ReAct цикле: {e}")
+            import traceback
+            print(f"📋 Детали ошибки: {traceback.format_exc()}")
             return self._create_error_response_text(routing_data, str(e))
     
-    def _determine_needed_agents(self, routing_data: Dict) -> List[str]:
-        """Определяет, какие специализированные агенты нужны"""
-        needed_agents = []
-        query = routing_data.get("query", "").lower()
-        
-        # Автоматическое определение нужных агентов на основе запроса
-        if any(word in query for word in ["actividades", "entretenimiento", "diversión", "museos", "parques", "atracciones"]):
-            needed_agents.append("activities")
-        
-        if any(word in query for word in ["hotel", "alojamiento", "dormir", "hospedaje"]):
-            needed_agents.append("hotels")
-            
-        if any(word in query for word in ["comer", "restaurante", "cena", "almuerzo", "comida"]):
-            needed_agents.append("restaurants")
-            
-        if any(word in query for word in ["transporte", "llegar", "moverse", "metro", "autobús"]):
-            needed_agents.append("transport")
-        
-        # Если агенты не определены автоматически, используем дефолтные
-        if not needed_agents:
-            needed_agents = ["activities"]  # По умолчанию предлагаем активности
-        
-        return needed_agents
-    
-    def _distribute_tasks(self, routing_data: Dict, needed_agents: List[str]) -> Dict[str, str]:
-        """Распределяет задачи между специализированными агентами"""
-        results = {}
-        
-        for agent_name in needed_agents:
-            try:
-                # Пока используем заглушки, позже заменим на реальные агенты
-                result = self._call_specialized_agent(agent_name, routing_data)
-                results[agent_name] = result
-                print(f"   ✅ {agent_name}: Задача выполнена")
-            except Exception as e:
-                print(f"   ❌ {agent_name}: Ошибка - {e}")
-                results[agent_name] = f"Ошибка агента {agent_name}: {str(e)}"
-        
-        return results
-    
-    def _call_specialized_agent(self, agent_name: str, routing_data: Dict) -> str:
-        """Вызывает специализированный агент с полной информацией о семье"""
-        profile = routing_data.get("profile", {})
-        family_id = routing_data.get("family_id", "unknown")
-        
-        # Отладочная информация о передаваемых данных
-        print(f"🔍 RouterAgent: Передаем данные в {agent_name}:")
-        print(f"   • Family ID: {family_id}")
-        print(f"   • Profile type: {type(profile)}")
-        if isinstance(profile, dict):
-            print(f"   • Kids ages: {profile.get('kids_ages', [])}")
-            print(f"   • Adults count: {profile.get('adults_count', 0)}")
-            print(f"   • Start date: {profile.get('start_date', 'No especificada')}")
-            print(f"   • End date: {profile.get('end_date', 'No especificada')}")
-            print(f"   • Budget level: {profile.get('budget_level', 'No especificado')}")
-        
-        # Если это агент активностей, используем реальный ActivitiesAgent
-        if agent_name == "activities":
-            if self.specialized_agents["activities"]:
-                print(f"✅ RouterAgent: Используем реальный ActivitiesAgent")
-                try:
-                    result = self.specialized_agents["activities"].process_request(routing_data)
-                    print(f"✅ RouterAgent: ActivitiesAgent вернул результат типа {type(result)}")
-                    
-                    # ActivitiesAgent возвращает словарь, нужно извлечь текстовую часть
-                    if isinstance(result, dict):
-                        print(f"📊 RouterAgent: Ключи в результате: {list(result.keys())}")
-                        
-                        # Ищем текстовую часть в разных возможных полях
-                        activities_text = result.get("activities_text", "")
-                        if not activities_text:
-                            # Попробуем найти в structured_data
-                            structured_data = result.get("structured_data", {})
-                            if isinstance(structured_data, dict):
-                                activities_text = structured_data.get("activities_text", "")
-                        
-                        if activities_text:
-                            print(f"✅ RouterAgent: Извлечен текст активностей длиной {len(activities_text)} символов")
-                            return activities_text
-                        else:
-                            print(f"⚠️ RouterAgent: Нет текста активностей в результате, возвращаем весь результат")
-                            return str(result)
-                    else:
-                        print(f"✅ RouterAgent: Возвращаем результат как есть")
-                        return str(result)
-                except Exception as e:
-                    print(f"❌ RouterAgent: Ошибка в ActivitiesAgent: {e}")
-                    import traceback
-                    print(f"📋 Детали ошибки: {traceback.format_exc()}")
-                    # Fallback к заглушке при ошибке
-            else:
-                print(f"⚠️ RouterAgent: ActivitiesAgent не инициализирован, используем заглушку")
-        query = routing_data.get("query", "")
-        
-        # Формируем контекст с полной информацией о семье
-        family_context = self._build_family_context(profile, family_id)
-        
-        # Заглушки для специализированных агентов с полным контекстом
-        stub_responses = {
-            "hotels": f"""🏨 **Recomendaciones de Hoteles para {family_id}**
-
-{family_context}
-
-**Consulta específica:** {query}
-
-**Recomendaciones personalizadas:**
-- Hoteles familiares con servicios para niños
-- Ubicación cerca de atracciones familiares
-- Presupuesto: {profile.get('budget_level', 'medium')}
-- Fechas: {profile.get('start_date', 'No especificadas')} a {profile.get('end_date', 'No especificadas')}
-
-[Заглушка - агент отелей с контекстом]""",
-            
-            "restaurants": f"""🍽️ **Recomendaciones de Restaurantes para {family_id}**
-
-{family_context}
-
-**Consulta específica:** {query}
-
-**Recomendaciones personalizadas:**
-- Restaurantes familiares con menú infantil
-- Intereses culinarios: {', '.join(profile.get('interests', [])) if profile.get('interests') else 'No especificados'}
-- Necesidades especiales: {', '.join(profile.get('special_needs', [])) if profile.get('special_needs') else 'Ninguna'}
-- Presupuesto: {profile.get('budget_level', 'medium')}
-
-[Заглушка - агент ресторанов con контекстом]""",
-            
-            "activities": f"""🎯 **Recomendaciones de Actividades para {family_id}**
-
-{family_context}
-
-**Consulta específica:** {query}
-
-**Recomendaciones personalizadas:**
-- Actividades apropiadas para las edades: {profile.get('kids_ages', [])}
-- Intereses: {', '.join(profile.get('interests', [])) if profile.get('interests') else 'No especificados'}
-- Necesidades especiales: {', '.join(profile.get('special_needs', [])) if profile.get('special_needs') else 'Ninguna'}
-- Presupuesto: {profile.get('budget_level', 'medium')}
-
-[Заглушка - агент активностей с контекстом]""",
-            
-            "transport": f"""🚌 **Recomendaciones de Transporte para {family_id}**
-
-{family_context}
-
-**Consulta específica:** {query}
-
-**Recomendaciones personalizadas:**
-- Opciones de transporte familiar
-- Accesibilidad: {', '.join(profile.get('special_needs', [])) if profile.get('special_needs') else 'No hay necesidades especiales'}
-- Presupuesto: {profile.get('budget_level', 'medium')}
-- Fechas: {profile.get('start_date', 'No especificadas')} a {profile.get('end_date', 'No especificadas')}
-
-[Заглушка - агент транспорта с контекстом]"""
-        }
-        
-        return stub_responses.get(agent_name, f"Неизвестный агент: {agent_name}")
-    
-    def _build_family_context(self, profile, family_id: str) -> str:
-        """Строит полный контекст семьи для специализированных агентов"""
-        # Проверяем, что profile - это словарь
-        if not isinstance(profile, dict):
-            return f"**Perfil Familiar Completo:**\n• **ID Familia:** {family_id}\n• **Datos:** No disponibles"
-        
-        kids_ages = profile.get('kids_ages', [])
-        adults_count = profile.get('adults_count', 0)
-        interests = profile.get('interests', [])
-        special_needs = profile.get('special_needs', [])
-        budget_level = profile.get('budget_level', 'medium')
-        language_preference = profile.get('language_preference', 'es')
-        start_date = profile.get('start_date', 'No especificada')
-        end_date = profile.get('end_date', 'No especificada')
-        
-        context = f"""**Perfil Familiar Completo:**
-• **ID Familia:** {family_id}
-• **Composición:** {adults_count} adultos, {len(kids_ages)} niños
-• **Edades de los niños:** {kids_ages if kids_ages else 'No hay niños'}
-• **Presupuesto:** {budget_level}
-• **Fechas de viaje:** {start_date} a {end_date}
-• **Idioma preferido:** {language_preference}"""
-        
-        if interests:
-            context += f"\n• **Intereses:** {', '.join(interests)}"
-        
-        if special_needs:
-            context += f"\n• **Necesidades especiales:** {', '.join(special_needs)}"
-        else:
-            context += f"\n• **Necesidades especiales:** Ninguna"
-            
-        return context
-    
-    def _aggregate_results(self, routing_data: Dict, agent_results: Dict[str, str]) -> Dict:
-        """Агрегирует результаты от всех агентов"""
-        return {
-            "query": routing_data.get("query", ""),
-            "family_id": routing_data.get("family_id", ""),
-            "query_type": routing_data.get("query_type", "general"),
-            "agent_results": agent_results,
-            "status": "success",
-            "message": "Задачи успешно распределены и выполнены"
-        }
-    
-    def _create_simple_response(self, routing_data: Dict) -> Dict:
-        """Создает простой ответ, если специализированные агенты не нужны"""
-        return {
-            "query": routing_data.get("query", ""),
-            "family_id": routing_data.get("family_id", ""),
-            "query_type": routing_data.get("query_type", "general"),
-            "agent_results": {},
-            "status": "simple",
-            "message": "Специализированные агенты не требуются"
-        }
-    
-    def _create_simple_response_text(self, routing_data: Dict) -> str:
-        """Создает простой текстовый ответ, если специализированные агенты не нужны"""
-        profile = routing_data.get("profile", {})
-        family_id = routing_data.get("family_id", "unknown")
-        query = routing_data.get("query", "")
-        
-        return f"""
-🎯 **Respuesta del RouterAgent:**
-
-Hola! He analizado tu consulta: "{query}"
-
-Para tu familia {family_id}, no necesito activar agentes especializados en este momento. 
-
-¿Hay algo específico en lo que pueda ayudarte? Por ejemplo:
-• "¿Qué hoteles me recomiendas?"
-• "¿Dónde podemos comer?"
-• "¿Qué actividades hay para niños?"
-• "¿Cómo llegar a Madrid?"
-
-**Perfil familiar:** {family_id} - {len(profile.get('kids_ages', []))} niños, {profile.get('adults_count', 0)} adultos
-"""
-    
-    def _create_error_response(self, routing_data: Dict, error: str) -> Dict:
-        """Создает ответ об ошибке"""
-        return {
-            "query": routing_data.get("query", ""),
-            "family_id": routing_data.get("family_id", ""),
-            "query_type": routing_data.get("query_type", "general"),
-            "agent_results": {},
-            "status": "error",
-            "message": f"Ошибка RouterAgent: {error}"
-        }
-    
     def _create_error_response_text(self, routing_data: Dict, error: str) -> str:
-        """Создает текстовый ответ об ошибке"""
+        """Создает ответ об ошибке"""
         return f"""
 ❌ **Error del RouterAgent:**
 
-Lo siento, hubo un error al procesar tu consulta: {error}
+No se pudo procesar la consulta debido a un error técnico.
 
-Por favor, intenta de nuevo o reformula tu pregunta.
+**Detalles del error:** {error}
+
+**Consulta:** {routing_data.get('query', 'N/A')}
+**Family ID:** {routing_data.get('family_id', 'N/A')}
+
+Por favor, intenta reformular tu consulta o contacta al soporte técnico.
 """
-        
-    def route_personalized_query(self, personalized_context: str, suggested_agent: str = "all") -> str:
-        """Определяет, к какому специализированному агенту направить запрос"""
-        
-        routing_prompt = PromptTemplate(
-            template="""
-            Eres un agente router que decide qué agente especializado debe manejar una consulta.
-            
-            CONSULTA PERSONALIZADA: {personalized_context}
-            AGENTE SUGERIDO: {suggested_agent}
-            
-            Determina el agente más apropiado:
-            - "hotels" - para alojamiento y hoteles
-            - "restaurants" - para restaurantes y comida
-            - "activities" - para actividades y atracciones
-            - "transportation" - para transporte
-            - "all" - para consultas generales que requieren múltiples agentes
-            
-            Responde solo con el nombre del agente.
-            """,
-            input_variables=["personalized_context", "suggested_agent"]
-        )
-        
-        chain = routing_prompt | self.llm
-        response = chain.invoke({
-            "personalized_context": personalized_context,
-            "suggested_agent": suggested_agent
-        })
-        
-        return response.strip().lower()
     
-    def route_by_keywords(self, query: str) -> str:
-        """Маршрутизация на основе ключевых слов в запросе"""
-        query_lower = query.lower()
-        
-        # Ключевые слова для каждого агента
-        hotel_keywords = ["hotel", "alojamiento", "hospedaje", "dormir", "habitación"]
-        restaurant_keywords = ["restaurante", "comida", "cenar", "almorzar", "desayunar", "comer"]
-        activity_keywords = ["actividad", "museo", "parque", "atracción", "visitar", "hacer", "ver"]
-        transport_keywords = ["transporte", "metro", "autobús", "taxi", "caminar", "llegar", "ir"]
-        
-        # Подсчет совпадений
-        hotel_score = sum(1 for keyword in hotel_keywords if keyword in query_lower)
-        restaurant_score = sum(1 for keyword in restaurant_keywords if keyword in query_lower)
-        activity_score = sum(1 for keyword in activity_keywords if keyword in query_lower)
-        transport_score = sum(1 for keyword in transport_keywords if keyword in query_lower)
-        
-        # Определение агента с наибольшим количеством совпадений
-        scores = {
-            "hotels": hotel_score,
-            "restaurants": restaurant_score,
-            "activities": activity_score,
-            "transportation": transport_score
-        }
-        
-        max_score = max(scores.values())
-        if max_score == 0:
-            return "all"  # Если нет совпадений, используем общий агент
-        
-        return max(scores, key=scores.get)
-    
-    def get_agent_description(self, agent_name: str) -> str:
-        """Возвращает описание агента"""
-        descriptions = {
-            "hotels": "Especialista en recomendaciones de hoteles y alojamiento familiar",
-            "restaurants": "Especialista en restaurantes familiares y opciones gastronómicas",
-            "activities": "Especialista en actividades turísticas y atracciones para familias",
-            "transportation": "Especialista en opciones de transporte y movilidad",
-            "all": "Asistente general para planificación completa de viajes"
-        }
-        return descriptions.get(agent_name, "Agente especializado")
-    
-    def _format_final_response_text(self, routing_data: Dict, agent_results: Dict[str, str]) -> str:
-        """Форматирует финальный ответ для пользователя"""
-        try:
-            profile = routing_data.get("profile", {})
-            family_id = routing_data.get("family_id", "unknown")
-            query = routing_data.get("query", "")
-            query_type = routing_data.get("query_type", "general")
-            
-            # Формируем ответ от специализированных агентов
-            specialized_responses = []
-            for agent_name, result in agent_results.items():
-                if agent_name == "hotels":
-                    specialized_responses.append(f"🏨 **Recomendaciones de Hoteles:**\n{result}")
-                elif agent_name == "restaurants":
-                    specialized_responses.append(f"🍽️ **Recomendaciones de Restaurantes:**\n{result}")
-                elif agent_name == "activities":
-                    specialized_responses.append(f"🎯 **Recomendaciones de Actividades:**\n{result}")
-                elif agent_name == "transport":
-                    specialized_responses.append(f"🚌 **Recomendaciones de Transporte:**\n{result}")
-            
-            # Объединяем все ответы
-            combined_response = "\n\n".join(specialized_responses) if specialized_responses else "No hay recomendaciones específicas disponibles."
-            
-            # Создаем расширенный профиль для отображения
-            # Проверяем, что profile - это словарь, а не строка
-            if isinstance(profile, dict):
-                family_summary = self._build_family_summary(profile, family_id)
-            else:
-                family_summary = f"**👨‍👩‍👧‍👦 Tu perfil familiar:** {family_id}"
-            
-            return f"""
-🎯 **Respuesta del RouterAgent (Multi-Agent):**
+    def _create_simple_response_text(self, routing_data: Dict) -> str:
+        """Создает простой ответ без специализированных агентов"""
+        return f"""
+🤖 **Respuesta del RouterAgent:**
 
-{combined_response}
+Hola! He recibido tu consulta: "{routing_data.get('query', '')}"
 
----
+Para poder ayudarte mejor, necesito más información específica sobre lo que buscas:
+- ¿Actividades para hacer?
+- ¿Restaurantes para comer?
+- ¿Hoteles para alojarse?
+- ¿Transporte para moverse?
 
-**📋 Resumen de tu consulta:**
-• **Consulta:** {query}
-• **Tipo:** {query_type}
-• **Agentes utilizados:** {', '.join(agent_results.keys()) if agent_results else 'Ninguno'}
-
-{family_summary}
-
-¿Hay algo más en lo que pueda ayudarte con tu viaje a Madrid?
+Por favor, especifica qué tipo de recomendaciones necesitas.
 """
-            
-        except Exception as e:
-            print(f"❌ Ошибка форматирования финального ответа: {e}")
-            return f"❌ Error al formatear respuesta: {str(e)}"
-    
-    def _build_family_summary(self, profile, family_id: str) -> str:
-        """Создает краткое резюме семьи для финального ответа"""
-        # Проверяем, что profile - это словарь
-        if not isinstance(profile, dict):
-            return f"**👨‍👩‍👧‍👦 Tu perfil familiar:** {family_id}"
-        
-        kids_ages = profile.get('kids_ages', [])
-        adults_count = profile.get('adults_count', 0)
-        interests = profile.get('interests', [])
-        special_needs = profile.get('special_needs', [])
-        budget_level = profile.get('budget_level', 'medium')
-        start_date = profile.get('start_date', 'No especificada')
-        end_date = profile.get('end_date', 'No especificada')
-        
-        summary = f"""**👨‍👩‍👧‍👦 Tu perfil familiar:**
-• **Familia:** {family_id} ({adults_count} adultos, {len(kids_ages)} niños)
-• **Edades de los niños:** {kids_ages if kids_ages else 'No hay niños'}
-• **Presupuesto:** {budget_level}
-• **Fechas:** {start_date} a {end_date}"""
-        
-        if interests:
-            summary += f"\n• **Intereses:** {', '.join(interests)}"
-        
-        if special_needs:
-            summary += f"\n• **Necesidades especiales:** {', '.join(special_needs)}"
-            
-        return summary

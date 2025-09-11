@@ -12,10 +12,10 @@ from langchain.tools import Tool
 from langchain.memory import ConversationBufferMemory
 
 # Импорты из модульной структуры
-from models.family_models_supabase import FamilyProfileSupabase, PersonalizedQuery
-from core.data_collector import FamilyDataCollector
-from services.router_agent import RouterAgent
-from tools.personalization_tools import (
+from app.models.family_models_supabase import FamilyProfileSupabase, PersonalizedQuery
+from app.core.data_collector import FamilyDataCollector
+from app.services.router_agent import RouterAgent
+from app.tools.personalization_tools import (
     get_family_profile_tool,
     update_family_profile_tool,
     analyze_family_needs_tool,
@@ -437,39 +437,15 @@ Empecemos con la primera pregunta:
                 # Для других запросов используем последовательную обработку
                 return self._process_sequential_response(query, user_id)
     
-            # 3. Если есть профиль, работаем как обычно
-            # Сначала получаем полный профиль с датами
-            full_profile = self._get_full_family_profile_via_api(user_id)
-            query_analysis = self._analyze_query(query, user_id, full_profile)
-            print(f"   Анализ запроса: {query_analysis}")
-            
-            # 3.1. Если нужны специализированные агенты, передаем в RouterAgent
-            if query_analysis.get("needs_multi_agent", False):
-                print("   🔄 Передача в RouterAgent для мультиагентной обработки...")
-                routing_data = self.prepare_data_for_routing(query, user_id)
-                
-                # 4. Сохраняем запрос в Supabase
-                self._save_travel_request(query, "Multi-agent processing", profile)
-                
-                # 5. Передаем управление RouterAgent - он сам вернет ответ пользователю
-                return self.router_agent.process_routing_data(routing_data)
-            
-            # 3.2. Если не нужны специализированные агенты, работаем как обычно
-            context_query = f"Usuario {user_id}: {query}"
-            response = self.agent.invoke({"input": context_query})
+            # 3. Если есть профиль, передаем в RouterAgent для анализа и обработки
+            print("   🔄 Передача в RouterAgent для анализа и обработки...")
+            routing_data = self.prepare_data_for_routing(query, user_id)
             
             # 4. Сохраняем запрос в Supabase
-            self._save_travel_request(query, response["output"], profile)
+            self._save_travel_request(query, "RouterAgent processing", profile)
             
-            # 5. Возвращаем персонализированный ответ
-            return f"""
-            🐭 **Respuesta del Ratoncito Pérez (Enhanced Agent):**
-            
-            {response["output"]}
-            
-            **Perfil familiar:** {profile.family_id} - {profile.get_family_size()} miembros, {profile.get_age_group()}
-            **Tipo de consulta:** {query_analysis["query_type"]}
-            """
+            # 5. Передаем управление RouterAgent - он сам проанализирует запрос и вернет ответ
+            return self.router_agent.process_routing_data(routing_data)
             
         except Exception as e:
             error_msg = str(e)
@@ -745,10 +721,7 @@ Empecemos con la primera pregunta:
             print(f"   • Start date: {full_profile.get('start_date', 'No especificada')}")
             print(f"   • End date: {full_profile.get('end_date', 'No especificada')}")
             
-            # 2. Анализируем запрос
-            query_analysis = self._analyze_query(query, family_id, full_profile)
-            
-            # 3. Подготавливаем данные для RouterAgent
+            # 2. Подготавливаем данные для RouterAgent (без анализа запроса)
             routing_data = {
                 "query": query,
                 "family_id": family_id,
@@ -761,17 +734,10 @@ Empecemos con la primera pregunta:
                     "language_preference": full_profile.get('language_preference', 'es'),
                     "start_date": full_profile.get('start_date', '2024-12-01'),
                     "end_date": full_profile.get('end_date', '2024-12-05')
-                },
-                "query_analysis": query_analysis,
-                "needs_hotels": query_analysis.get("needs_hotels", False),
-                "needs_restaurants": query_analysis.get("needs_restaurants", False),
-                "needs_activities": query_analysis.get("needs_activities", False),
-                "needs_transport": query_analysis.get("needs_transport", False),
-                "is_planning": query_analysis.get("is_planning", False),
-                "query_type": query_analysis.get("query_type", "general")
+                }
             }
             
-            print(f"✅ Данные подготовлены для RouterAgent: {routing_data['query_type']}")
+            print(f"✅ Данные подготовлены для RouterAgent")
             print(f"📤 PersonalizationReactAgent ПЕРЕДАЕТ RouterAgent:")
             print(f"   • Query: {routing_data['query']}")
             print(f"   • Family ID: {routing_data['family_id']}")

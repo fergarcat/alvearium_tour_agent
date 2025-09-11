@@ -1,4 +1,4 @@
-# app/services/activities_agent.py
+
 """
 Activities Agent - specialized agent for entertainment planning
 React agent that receives requests from RouterAgent
@@ -36,7 +36,7 @@ class ActivitiesAgent:
             temperature=0.3
         )
         
-        # Удалена мок база данных - используем только API
+       
         
         # Create parser for structured output
         self.output_parser = PydanticOutputParser(pydantic_object=ActivitiesResponse)
@@ -64,9 +64,8 @@ class ActivitiesAgent:
             early_stopping_method="force"
         )
         
-        print("✅ ActivitiesAgent инициализирован с API функциональностью")
     
-    # Удален метод _initialize_activities_database - используем только API
+   
     
     def _initialize_api_services(self) -> Dict[str, Any]:
         """Initialize API services"""
@@ -98,84 +97,80 @@ class ActivitiesAgent:
         return None
     
     def _create_enhanced_tools(self) -> List[Tool]:
-        """Создает расширенные инструменты с API вызовами"""
+        """Creates enhanced tools with API calls"""
         tools = []
         
-        # Добавляем API инструменты (ПРИОРИТЕТ 1)
+        # Add API tools (PRIORITY 1)
         if self.api_services["google_places"]:
             tools.append(Tool(
                 name="search_places_api",
-                description="""[ПРИОРИТЕТ 1] Поиск мест через Google Places API.
-                ОБЯЗАТЕЛЬНО используй ПЕРВЫМ для поиска мест в Мадриде.
-                Входные параметры: query (поисковый запрос), place_type (тип места)
-                Формат: search_places_api("museos para niños", "museum")
-                Возвращает: список мест с рейтингами, ценами, типами""",
+                description="""[PRIORITY 1] Search places through Google Places API.
+                MANDATORY to use FIRST for finding places in Madrid.
+                Input parameters: query (search query), place_type (place type)
+                Format: search_places_api("museos para niños", "museum")
+                Returns: list of places with ratings, prices, types""",
                 func=self._search_places_api
             ))
             
             tools.append(Tool(
                 name="get_place_details_api",
-                description="""[ПРИОРИТЕТ 1] Получение детальной информации о месте.
-                Используй ПОСЛЕ search_places_api для получения полной информации.
-                Входные параметры: place_id (ID места из search_places_api)
-                Формат: get_place_details_api("ChIJN1t_tDeuEmsRUsoyG83frY4")
-                Возвращает: детали, часы работы, отзывы, контакты""",
+                description="""[PRIORITY 1] Get detailed information about a place.
+                Use AFTER search_places_api to get complete information.
+                Input parameters: place_id (place ID from search_places_api)
+                Format: get_place_details_api("ChIJN1t_tDeuEmsRUsoyG83frY4")
+                Returns: details, opening hours, reviews, contacts""",
                 func=self._get_place_details_api
             ))
         
         if self.api_services["weather"]:
             tools.append(Tool(
                 name="check_weather_api",
-                description="""[ПРИОРИТЕТ 1] Проверка погоды в Мадриде.
-                ОБЯЗАТЕЛЬНО используй для рекомендации активностей на улице.
-                Входные параметры: date (дата в формате YYYY-MM-DD)
-                Формат: check_weather_api("2024-01-15")
-                Возвращает: температуру, условия, рекомендации""",
+                description="""[PRIORITY 1] Check weather in Madrid.
+                MANDATORY to use for recommending outdoor activities.
+                Input parameters: date (date in YYYY-MM-DD format)
+                Format: check_weather_api("2024-01-15")
+                Returns: temperature, conditions, recommendations""",
                 func=self._check_weather_api
             ))
         
         if self.api_services["events"]:
             tools.append(Tool(
                 name="search_events_api",
-                description="""[ПРИОРИТЕТ 1] Поиск событий и мероприятий.
-                Используй для поиска временных событий и мероприятий.
-                Входные параметры: query (поисковый запрос), date (дата)
-                Формат: search_events_api("talleres niños", "2024-01-15")
-                Возвращает: события с датами, временем, ценами""",
+                description="""[PRIORITY 1] Search events and activities.
+                Use for finding temporary events and activities.
+                Input parameters: query (search query), date (date)
+                Format: search_events_api("talleres niños", "2024-01-15")
+                Returns: events with dates, times, prices""",
                 func=self._search_events_api
             ))
         
-        # Добавляем fallback инструмент (ПРИОРИТЕТ 2 - только если API недоступны)
+        # Add fallback tool (PRIORITY 2 - only if APIs unavailable)
         tools.append(StructuredTool.from_function(
             func=create_activities_plan,
             name="create_activities_plan",
-            description="""[ПРИОРИТЕТ 2] Создает план активностей (fallback).
-            Используй ТОЛЬКО если API недоступны или не дали результатов.
-            Входные параметры: query, kids_ages, adults_count, interests, budget_level, special_needs, origin_country, travel_dates
-            Формат: create_activities_plan(query="actividades", kids_ages=[8, 12], adults_count=2, interests=["arte"], budget_level="medium", special_needs=[], origin_country="Spain", travel_dates="2024-01-15")
-            Возвращает: структурированный план активностей""",
+            description="""[PRIORITY 2] Creates activities plan (fallback).
+            Use ONLY if APIs are unavailable or didn't return results.
+            Input parameters: query, kids_ages, adults_count, interests, budget_level, special_needs, origin_country, travel_dates
+            Format: create_activities_plan(query="actividades", kids_ages=[8, 12], adults_count=2, interests=["arte"], budget_level="medium", special_needs=[], origin_country="Spain", travel_dates="2024-01-15")
+            Returns: structured activities plan""",
             return_schema=ActivitiesResponse
         ))
         
         return tools
     
     def _force_api_usage(self, context: Dict[str, Any]) -> None:
-        """Принудительно проверяет и использует API для получения актуальных данных"""
+        """Forces API check and usage to get current data"""
         try:
-            print("🔍 ActivitiesAgent: Принудительная проверка API...")
-            
-            # Проверяем доступность API
+            # Check API availability
             api_available = {
                 "google_places": self.api_services["google_places"] is not None,
                 "weather": self.api_services["weather"] is not None,
                 "events": self.api_services["events"] is not None
             }
             
-            print(f"📊 API статус: {api_available}")
-            
-            # Если есть API, добавляем СТРОГИЕ инструкции в контекст
+            # If APIs are available, add STRICT instructions to context
             if any(api_available.values()):
-                # Создаем персонализированные инструкции с учетом возраста детей
+                # Create personalized instructions considering children's age
                 kids_ages = context.get('kids_ages', [])
                 travel_dates = context.get('travel_dates', '2024-01-15')
                 input_query = context.get('input', 'actividades para niños')
@@ -187,166 +182,150 @@ class ActivitiesAgent:
                     personalized_query = input_query
                 
                 context["api_instructions"] = f"""
-                🚨 КРИТИЧЕСКИ ВАЖНО: API ДОСТУПНЫ! ОБЯЗАТЕЛЬНО ИСПОЛЬЗУЙ ИХ!
+                🚨 CRITICALLY IMPORTANT: APIs ARE AVAILABLE! MANDATORY TO USE THEM!
                 
-                ДОСТУПНЫЕ API: {[k for k, v in api_available.items() if v]}
-                👶 ВОЗРАСТ ДЕТЕЙ: {kids_ages}
-                📅 ДАТЫ ПОЕЗДКИ: {travel_dates}
+                AVAILABLE APIs: {[k for k, v in api_available.items() if v]}
+                👶 CHILDREN AGES: {kids_ages}
+                📅 TRAVEL DATES: {travel_dates}
                 
-                ПОРЯДОК ДЕЙСТВИЙ (ОБЯЗАТЕЛЬНО):
-                1. **СНАЧАЛА** вызови search_places_api с запросом "{personalized_query}"
-                2. **ЗАТЕМ** вызови check_weather_api для даты "{travel_dates}"
-                3. **ПОТОМ** вызови search_events_api для поиска событий с учетом возраста
-                4. **ТОЛЬКО ПОСЛЕ** всех API вызовов используй create_activities_plan
+                ACTION ORDER (MANDATORY):
+                1. **FIRST** call search_places_api with query "{personalized_query}"
+                2. **THEN** call check_weather_api for date "{travel_dates}"
+                3. **THEN** call search_events_api to search for events considering age
+                4. **ONLY AFTER** all API calls use create_activities_plan
                 
-                ЗАПРЕЩЕНО:
-                ❌ Использовать create_activities_plan БЕЗ вызова API
-                ❌ Пропускать API вызовы
-                ❌ Использовать fallback данные
-                ❌ Игнорировать возраст детей в запросах
+                FORBIDDEN:
+                ❌ Use create_activities_plan WITHOUT calling APIs
+                ❌ Skip API calls
+                ❌ Use fallback data
+                ❌ Ignore children's age in queries
                 
-                НАЧНИ С: search_places_api("{personalized_query}", "amusement_park|museum|park|zoo")
+                START WITH: search_places_api("{personalized_query}", "amusement_park|museum|park|zoo")
                 """
                 
-                # Добавляем флаг принуждения
+                # Add forcing flag
                 context["force_api_first"] = True
-                print("🚨 ActivitiesAgent: API принуждение активировано!")
             else:
                 context["api_instructions"] = """
-                ⚠️ API недоступны, используй create_activities_plan как fallback
+                ⚠️ APIs unavailable, use create_activities_plan as fallback
                 """
                 context["force_api_first"] = False
                 
         except Exception as e:
-            print(f"⚠️ Ошибка принудительного использования API: {e}")
+            pass
     
     def _force_api_calls(self, context: Dict[str, Any]) -> None:
-        """Принудительно вызывает API для получения данных"""
+        """Forces API calls to get data"""
         try:
-            print("🚨 ActivitiesAgent: Принудительный вызов API...")
-            
-            # Извлекаем данные из контекста для персонализации
+            # Extract data from context for personalization
             kids_ages = context.get('kids_ages', [])
             travel_dates = context.get('travel_dates', '2024-01-15')
             input_query = context.get('input', 'actividades para niños')
             
-            # Создаем простой запрос для Google Places API
+            # Create simple query for Google Places API
             if kids_ages:
-                # Упрощаем запрос для лучшего понимания API
+                # Simplify query for better API understanding
                 personalized_query = f"actividades niños Madrid {min(kids_ages)} {max(kids_ages)} años"
             else:
                 personalized_query = "actividades niños Madrid"
             
-            print(f"👶 Персонализированный запрос: {personalized_query}")
-            
-            # Принудительно вызываем Google Places API
+            # Force call Google Places API
             if self.api_services["google_places"]:
-                print("🔍 Принудительный вызов search_places_api...")
                 places_result = self._search_places_api(personalized_query, "amusement_park|museum|park|zoo")
-                print(f"📊 Результат search_places_api: {places_result[:200]}...")
-                
-                # Добавляем результат в контекст
+                # Add result to context
                 context["forced_places_data"] = places_result
             
-            # Принудительно вызываем Weather API
+            # Force call Weather API
             if self.api_services["weather"]:
-                print("🌤️ Принудительный вызов check_weather_api...")
-                # Используем реальные даты поездки
+                # Use real travel dates
                 weather_date = travel_dates.split(' - ')[0] if ' - ' in travel_dates else travel_dates
                 weather_result = self._check_weather_api(weather_date)
-                print(f"📊 Результат check_weather_api: {weather_result[:200]}...")
-                
-                # Добавляем результат в контекст
+                # Add result to context
                 context["forced_weather_data"] = weather_result
             
-            # Принудительно вызываем Events API
+            # Force call Events API
             if self.api_services["events"]:
-                print("🎪 Принудительный вызов search_events_api...")
-                # Создаем запрос с учетом возраста детей
+                # Create query considering children's age
                 if kids_ages:
                     events_query = f"talleres niños Madrid {min(kids_ages)} {max(kids_ages)} años"
                 else:
                     events_query = "talleres niños Madrid"
                 events_result = self._search_events_api(events_query, weather_date)
-                print(f"📊 Результат search_events_api: {events_result[:200]}...")
-                
-                # Добавляем результат в контекст
+                # Add result to context
                 context["forced_events_data"] = events_result
             
-            print("✅ ActivitiesAgent: API принудительно вызваны с учетом возраста детей!")
-            
         except Exception as e:
-            print(f"⚠️ Ошибка принудительного вызова API: {e}")
+            pass
     
     def _create_enhanced_prompt(self) -> PromptTemplate:
-        """Создает расширенный промпт с API возможностями по схеме ReAct"""
-        template = """Eres un experto agente de actividades familiares en Madrid que sigue el patrón ReAct (Reasoning + Acting).
+        """Creates enhanced prompt with API capabilities using ReAct pattern"""
+        template = """You are an expert family activities agent in Madrid that follows the ReAct pattern (Reasoning + Acting).
 
-INFORMACIÓN DE LA FAMILIA:
-- Edades de los niños: {kids_ages}
-- Número de adultos: {adults_count}
-- Intereses: {interests}
-- Presupuesto: {budget_level}
-- Fechas de viaje: {travel_dates}
+FAMILY INFORMATION:
+- Children ages: {kids_ages}
+- Number of adults: {adults_count}
+- Interests: {interests}
+- Budget: {budget_level}
+- Travel dates: {travel_dates}
 
-INSTRUCCIONES API:
+API INSTRUCTIONS:
 {api_instructions}
 
-DATOS API OBTENIDOS (si están disponibles):
-- Lugares: {forced_places_data}
-- Clima: {forced_weather_data}
-- Eventos: {forced_events_data}
+API DATA OBTAINED (if available):
+- Places: {forced_places_data}
+- Weather: {forced_weather_data}
+- Events: {forced_events_data}
 
-HERRAMIENTAS DISPONIBLES:
+AVAILABLE TOOLS:
 {tools}
 
-NOMBRES DE HERRAMIENTAS:
+TOOL NAMES:
 {tool_names}
 
-PRIORIDAD DE HERRAMIENTAS (ORDEN OBLIGATORIO):
-1. **PRIMERA PRIORIDAD**: API externas (search_places_api, get_place_details_api, check_weather_api, search_events_api)
-2. **SEGUNDA PRIORIDAD**: create_activities_plan (solo si API no disponibles)
+TOOL PRIORITY (MANDATORY ORDER):
+1. **FIRST PRIORITY**: External APIs (search_places_api, get_place_details_api, check_weather_api, search_events_api)
+2. **SECOND PRIORITY**: create_activities_plan (only if APIs not available)
 
-PATRÓN DE RAZONAMIENTO ReAct:
-**Thought**: [Analiza qué necesitas hacer y por qué]
-**Action**: [Nombre de la herramienta a usar]
-**Action Input**: [Parámetros para la herramienta]
-**Observation**: [Resultado de la herramienta]
-**Thought**: [Analiza el resultado y decide el siguiente paso]
-**Action**: [Siguiente herramienta si es necesario]
-**Action Input**: [Parámetros]
-**Observation**: [Resultado]
-**Final Answer**: [Respuesta final estructurada]
+ReAct REASONING PATTERN:
+**Thought**: [Analyze what you need to do and why]
+**Action**: [Name of the tool to use]
+**Action Input**: [Parameters for the tool]
+**Observation**: [Tool result]
+**Thought**: [Analyze the result and decide the next step]
+**Action**: [Next tool if necessary]
+**Action Input**: [Parameters]
+**Observation**: [Result]
+**Final Answer**: [Final structured response]
 
-REGLAS ESTRICTAS:
-1. **SIEMPRE** intenta usar API externas PRIMERO
-2. **NUNCA** uses create_activities_plan si hay API disponibles
-3. **COMBINA** información de múltiples API cuando sea posible
-4. **VERIFICA** clima antes de recomendar actividades al aire libre
-5. **BUSCA** eventos específicos para las fechas de viaje
-6. **OBTÉN** detalles completos de lugares recomendados
+STRICT RULES:
+1. **ALWAYS** try to use external APIs FIRST
+2. **NEVER** use create_activities_plan if APIs are available
+3. **COMBINE** information from multiple APIs when possible
+4. **CHECK** weather before recommending outdoor activities
+5. **SEARCH** for specific events for travel dates
+6. **GET** complete details of recommended places
 
-🚨 VERIFICACIÓN OBLIGATORIA:
-- Si ves "force_api_first": true, DEBES usar API PRIMERO
-- Si ves "API ДОСТУПНЫ", DEBES usar API PRIMERO
-- NO puedes usar create_activities_plan sin antes llamar a las API
+🚨 MANDATORY VERIFICATION:
+- If you see "force_api_first": true, you MUST use APIs FIRST
+- If you see "API ДОСТУПНЫ", you MUST use APIs FIRST
+- You CANNOT use create_activities_plan without first calling APIs
 
-EJEMPLO DE FLUJO CORRECTO:
-**Thought**: Necesito encontrar museos para niños de 8 años en Madrid
+CORRECT FLOW EXAMPLE:
+**Thought**: I need to find museums for 8-year-old children in Madrid
 **Action**: search_places_api
 **Action Input**: {{"query": "museos para niños Madrid", "place_type": "museum"}}
-**Observation**: [Resultado de la API]
-**Thought**: Ahora necesito verificar el clima para recomendar actividades
+**Observation**: [API result]
+**Thought**: Now I need to check the weather to recommend activities
 **Action**: check_weather_api
 **Action Input**: {{"date": "2024-01-15"}}
-**Observation**: [Datos del clima]
-**Thought**: Voy a buscar eventos especiales para esa fecha
+**Observation**: [Weather data]
+**Thought**: I'll search for special events for that date
 **Action**: search_events_api
 **Action Input**: {{"query": "talleres niños", "date": "2024-01-15"}}
-**Observation**: [Eventos encontrados]
-**Final Answer**: [Plan completo basado en datos reales]
+**Observation**: [Events found]
+**Final Answer**: [Complete plan based on real data]
 
-Consulta del usuario: {input}
+User query: {input}
 
 {agent_scratchpad}"""
 
@@ -360,40 +339,31 @@ Consulta del usuario: {input}
         )
     
     def process_request(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Главный метод обработки запросов от RouterAgent с Pydantic + Function Calling"""
+        """Main method for processing requests from RouterAgent with Pydantic + Function Calling"""
         try:
-            print(f"🎯 ActivitiesAgent: Обработка запроса с Pydantic + Function Calling")
-            print(f"📥 ActivitiesAgent: Получены данные: {list(request_data.keys())}")
-            
             profile = request_data.get('profile', {})
             query = request_data.get('query', 'planificar actividades')
             
-            print(f"📝 ActivitiesAgent: Query: {query}")
-            print(f"👨‍👩‍👧‍👦 ActivitiesAgent: Profile type: {type(profile)}")
-            print(f"📊 ActivitiesAgent: Profile keys: {list(profile.keys()) if isinstance(profile, dict) else 'Not a dict'}")
-            
-            # Извлекаем данные профиля
+            # Extract profile data
             kids_ages = profile.get('kids_ages', []) if isinstance(profile, dict) else getattr(profile, 'kids_ages', [])
             adults_count = profile.get('adults_count', 2) if isinstance(profile, dict) else getattr(profile, 'adults_count', 2)
             interests = profile.get('interests', []) if isinstance(profile, dict) else getattr(profile, 'interests', [])
             origin_country = profile.get('origin_country', 'Spain') if isinstance(profile, dict) else getattr(profile, 'origin_country', 'Spain')
             special_needs = profile.get('special_needs', []) if isinstance(profile, dict) else getattr(profile, 'special_needs', [])
-            # Загружаем данные поездки
+            # Load travel data
             if isinstance(profile, dict):
-                # Если profile - это словарь от RouterAgent, извлекаем даты напрямую
+                # If profile is a dictionary from RouterAgent, extract dates directly
                 budget_level = profile.get('budget_level', 'medium')
                 start_date = profile.get('start_date', '')
                 end_date = profile.get('end_date', '')
                 travel_dates = f"{start_date} - {end_date}" if start_date and end_date else ''
-                print(f"📅 ActivitiesAgent: Получены даты от RouterAgent: {travel_dates}")
             else:
-                # Если profile - это объект FamilyProfileSupabase, загружаем данные поездки
+                # If profile is a FamilyProfileSupabase object, load travel data
                 travel_data = profile.load_travel_dates(family_id)
                 budget_level = travel_data.get('budget_level', 'medium')
                 start_date = travel_data.get('start_date', '')
                 end_date = travel_data.get('end_date', '')
                 travel_dates = f"{start_date} - {end_date}" if start_date and end_date else ''
-                print(f"📅 ActivitiesAgent: Загружены даты из travel_requests: {travel_dates}")
             
             context = {
                 "input": query,
@@ -404,25 +374,24 @@ Consulta del usuario: {input}
                 "special_needs": special_needs,
                 "budget_level": budget_level,
                 "travel_dates": travel_dates,
-                "api_instructions": "",  # Будет заполнено в _force_api_usage
-                "forced_places_data": "",  # Будет заполнено в _force_api_calls
-                "forced_weather_data": "",  # Будет заполнено в _force_api_calls
-                "forced_events_data": ""  # Будет заполнено в _force_api_calls
+                "api_instructions": "",  # Will be filled in _force_api_usage
+                "forced_places_data": "",  # Will be filled in _force_api_calls
+                "forced_weather_data": "",  # Will be filled in _force_api_calls
+                "forced_events_data": ""  # Will be filled in _force_api_calls
             }
             
             try:
-                # Проверяем доступность API и принудительно используем их
+                # Check API availability and force use them
                 self._force_api_usage(context)
                 
-                # Принудительно вызываем API если они доступны
+                # Force call APIs if they are available
                 if context.get("force_api_first", False):
-                    print("🚨 ActivitiesAgent: Принудительный вызов API...")
                     self._force_api_calls(context)
                 
-                # Выполняем агент с Function Calling
+                # Execute agent with Function Calling
                 result = self.agent_executor.invoke(context)
                 
-                # Извлекаем структурированные данные из результата
+                # Extract structured data from result
                 structured_data = None
                 activities_text = ""
                 
@@ -430,55 +399,50 @@ Consulta del usuario: {input}
                     output = result.get('output', '')
                     intermediate_steps = result.get('intermediate_steps', [])
                     
-                    # Ищем вызов функции create_activities_plan в промежуточных шагах
+                    # Look for create_activities_plan function call in intermediate steps
                     for step in intermediate_steps:
                         if isinstance(step, tuple) and len(step) >= 2:
                             action, observation = step
                             if isinstance(action, dict) and action.get('tool') == 'create_activities_plan':
                                 try:
-                                    # Парсим результат функции (observation уже является словарем)
+                                    # Parse function result (observation is already a dictionary)
                                     if isinstance(observation, dict):
                                         structured_data = ActivitiesResponse(**observation)
                                     else:
                                         structured_data = ActivitiesResponse.parse_raw(observation)
                                     activities_text = self._format_activities_text(structured_data)
-                                    print(f"✅ ActivitiesAgent: Структурированные данные получены через Function Calling")
                                     break
                                 except Exception as e:
-                                    print(f"⚠️ ActivitiesAgent: Ошибка парсинга структурированных данных: {e}")
                                     continue
                     
-                    # Если не нашли структурированные данные, используем текстовый вывод
+                    # If structured data not found, use text output
                     if not structured_data and output:
                         activities_text = output
-                        print(f"✅ ActivitiesAgent: Используем текстовый вывод")
                 
-                # Если нет структурированных данных, создаем минимальные данные
+                # If no structured data, create minimal data
                 if not structured_data:
-                    print(f"⚠️ ActivitiesAgent: Нет структурированных данных, создаем минимальные данные")
-                    activities_text = "No se pudieron obtener actividades. Verifique la conexión a las API."
+                    activities_text = "Could not obtain activities. Please check API connection."
                 
-                # Проверяем, что activities_text не пустой
+                # Check that activities_text is not empty
                 if not activities_text or activities_text.strip() == "":
-                    print(f"⚠️ ActivitiesAgent: activities_text пустой, создаем fallback")
-                    activities_text = f"""🎯 **Recomendaciones de Actividades para {context.get('kids_ages', [])} años**
+                    activities_text = f"""🎯 **Activity Recommendations for {context.get('kids_ages', [])} years old**
 
-**Perfil Familiar:**
-• Edades de los niños: {context.get('kids_ages', [])}
-• Número de adultos: {context.get('adults_count', 2)}
-• Intereses: {', '.join(context.get('interests', [])) if context.get('interests') else 'No especificados'}
-• País de origen: {context.get('origin_country', 'No especificado')}
-• Presupuesto: {context.get('budget_level', 'medium')}
-• Fechas de viaje: {context.get('travel_dates', 'No especificadas')}
+**Family Profile:**
+• Children ages: {context.get('kids_ages', [])}
+• Number of adults: {context.get('adults_count', 2)}
+• Interests: {', '.join(context.get('interests', [])) if context.get('interests') else 'Not specified'}
+• Country of origin: {context.get('origin_country', 'Not specified')}
+• Budget: {context.get('budget_level', 'medium')}
+• Travel dates: {context.get('travel_dates', 'Not specified')}
 
-**Recomendaciones personalizadas:**
-- Actividades apropiadas para las edades: {context.get('kids_ages', [])}
-- Intereses: {', '.join(context.get('interests', [])) if context.get('interests') else 'No especificados'}
-- Necesidades especiales: {', '.join(context.get('special_needs', [])) if context.get('special_needs') else 'Ninguna'}
-- Presupuesto: {context.get('budget_level', 'medium')}
+**Personalized recommendations:**
+- Age-appropriate activities: {context.get('kids_ages', [])}
+- Interests: {', '.join(context.get('interests', [])) if context.get('interests') else 'Not specified'}
+- Special needs: {', '.join(context.get('special_needs', [])) if context.get('special_needs') else 'None'}
+- Budget: {context.get('budget_level', 'medium')}
 
-[Заглушка - агент активностей с контекстом]"""
-                    # Создаем минимальные структурированные данные
+[Fallback - activities agent with context]"""
+                    # Create minimal structured data
                     from app.models.activities_models import BudgetEstimate
                     structured_data = ActivitiesResponse(
                         activities=[],
@@ -487,18 +451,15 @@ Consulta del usuario: {input}
                         budget_estimate=BudgetEstimate(
                             range="€0-50", 
                             per_person="€10-25", 
-                            notes="API no disponible"
+                            notes="API unavailable"
                         ),
                         age_groups=self._get_age_groups(context.get('kids_ages', [])),
                         interests_covered=[],
-                        weather_considerations=["Verificar clima antes de salir"],
-                        practical_tips=["Verificar conexión a las API"]
+                        weather_considerations=["Check weather before going out"],
+                        practical_tips=["Check API connection"]
                     )
                 
-                # Создаем результат с Pydantic валидацией
-                print(f"📝 ActivitiesAgent: activities_text длина: {len(activities_text)}")
-                print(f"📝 ActivitiesAgent: activities_text превью: {activities_text[:200]}...")
-                
+                # Create result with Pydantic validation
                 agent_result = ActivitiesAgentResult(
                     agent_name="activities",
                     status="success",
@@ -515,13 +476,11 @@ Consulta del usuario: {input}
                 )
                 
                 result_dict = agent_result.dict()
-                print(f"📤 ActivitiesAgent: Возвращаем результат с ключами: {list(result_dict.keys())}")
                 return result_dict
 
             except Exception as agent_error:
-                print(f"⚠️ ActivitiesAgent: Ошибка агента: {agent_error}")
-                # Ошибка - создаем минимальные данные
-                activities_text = f"Error al procesar la solicitud: {str(agent_error)}. Verifique la conexión a las API."
+                # Error - create minimal data
+                activities_text = f"Error processing request: {str(agent_error)}. Please check API connection."
                 from app.models.activities_models import BudgetEstimate
                 structured_data = ActivitiesResponse(
                     activities=[],
@@ -530,12 +489,12 @@ Consulta del usuario: {input}
                     budget_estimate=BudgetEstimate(
                         range="€0-50", 
                         per_person="€10-25", 
-                        notes="Error en procesamiento"
+                        notes="Processing error"
                     ),
                     age_groups=self._get_age_groups(context.get('kids_ages', [])),
                     interests_covered=[],
-                    weather_considerations=["Verificar clima antes de salir"],
-                    practical_tips=["Verificar conexión a las API"]
+                    weather_considerations=["Check weather before going out"],
+                    practical_tips=["Check API connection"]
                 )
                 
                 return {
@@ -554,7 +513,6 @@ Consulta del usuario: {input}
                 }
             
         except Exception as e:
-            print(f"❌ ActivitiesAgent: Ошибка обработки: {e}")
             from app.models.activities_models import BudgetEstimate
             structured_data = ActivitiesResponse(
                 activities=[],
@@ -563,19 +521,19 @@ Consulta del usuario: {input}
                 budget_estimate=BudgetEstimate(
                     range="€0-50", 
                     per_person="€10-25", 
-                    notes="Error crítico"
+                        notes="Critical error"
                 ),
                 age_groups=self._get_age_groups(context.get('kids_ages', [])),
                 interests_covered=[],
-                weather_considerations=["Verificar clima antes de salir"],
-                practical_tips=["Verificar conexión a las API"]
+                weather_considerations=["Check weather before going out"],
+                practical_tips=["Check API connection"]
             )
             return {
                 "agent_name": "activities",
                 "status": "error",
                 "query": query,
                 "family_context": context,
-                "activities_text": f"Lo siento, hubo un error al crear tu plan de actividades: {str(e)}",
+                "activities_text": f"Sorry, there was an error creating your activities plan: {str(e)}",
                 "structured_data": structured_data,
                 "metadata": {
                     "processing_time": "real_time",
@@ -586,14 +544,14 @@ Consulta del usuario: {input}
             }
     
     def _parse_activities_response(self, activities_text: str, context: Dict) -> Dict[str, Any]:
-        """Парсит текстовый ответ в структурированные данные"""
+        """Parses text response into structured data"""
         try:
-            # Извлекаем основные данные из контекста
+            # Extract main data from context
             kids_ages = context.get('kids_ages', [])
             budget_level = context.get('budget_level', 'medium')
             interests = context.get('interests', [])
             
-            # Парсим активности из текста
+            # Parse activities from text
             activities = []
             lines = activities_text.split('\n')
             
@@ -603,14 +561,14 @@ Consulta del usuario: {input}
                 if not line:
                     continue
                 
-                # Ищем заголовки активностей (содержат цифры или эмодзи)
+                # Look for activity headers (contain numbers or emojis)
                 if any(indicator in line for indicator in ['**', '###', '1.', '2.', '3.', '4.', '5.', '🎯', '🏛️', '🌳', '🎨']):
                     if current_activity:
                         activities.append(current_activity)
                     
-                    # Извлекаем название активности
+                    # Extract activity name
                     activity_name = line.replace('**', '').replace('###', '').strip()
-                    # Убираем номера
+                    # Remove numbers
                     import re
                     activity_name = re.sub(r'^\d+\.\s*', '', activity_name)
                     
@@ -626,7 +584,7 @@ Consulta del usuario: {input}
                         "accessibility": "standard"
                     }
                 elif current_activity and line:
-                    # Добавляем информацию к текущей активности
+                    # Add information to current activity
                     if 'horario' in line.lower() or 'schedule' in line.lower():
                         current_activity["schedule"] = line
                     elif 'ubicación' in line.lower() or 'location' in line.lower():
@@ -636,11 +594,11 @@ Consulta del usuario: {input}
                     else:
                         current_activity["description"] += " " + line
             
-            # Добавляем последнюю активность
+            # Add last activity
             if current_activity:
                 activities.append(current_activity)
             
-            # Если не удалось извлечь активности, возвращаем пустой список
+            # If couldn't extract activities, return empty list
             if not activities:
                 activities = []
             
@@ -656,7 +614,6 @@ Consulta del usuario: {input}
             }
             
         except Exception as e:
-            print(f"⚠️ Ошибка парсинга активностей: {e}")
             return {
                 "activities": [],
                 "total_activities": 0,
@@ -664,7 +621,7 @@ Consulta del usuario: {input}
             }
     
     def _classify_activity_type(self, activity_name: str) -> str:
-        """Классифицирует тип активности"""
+        """Classifies activity type"""
         activity_lower = activity_name.lower()
         if any(word in activity_lower for word in ['museo', 'museum', 'galería']):
             return "museum"
@@ -680,7 +637,7 @@ Consulta del usuario: {input}
             return "general"
     
     def _estimate_price_range(self, activity_name: str, budget_level: str) -> str:
-        """Оценивает ценовой диапазон активности"""
+        """Estimates activity price range"""
         activity_lower = activity_name.lower()
         if any(word in activity_lower for word in ['gratis', 'free', 'entrada libre']):
             return "free"
@@ -690,7 +647,7 @@ Consulta del usuario: {input}
             return "medium" if budget_level == "medium" else "high"
     
     def _assess_age_suitability(self, activity_name: str, kids_ages: List[int]) -> Dict[str, Any]:
-        """Оценивает подходящий возраст для активности"""
+        """Assesses suitable age for activity"""
         if not kids_ages:
             return {"suitable": True, "age_range": "all", "notes": ""}
         
@@ -709,7 +666,7 @@ Consulta del usuario: {input}
             return {"suitable": True, "age_range": "all", "notes": "Adecuado para todas las edades"}
     
     def _assess_interests_match(self, activity_name: str, interests: List[str]) -> float:
-        """Оценивает соответствие интересам семьи (0-1)"""
+        """Assesses match with family interests (0-1)"""
         if not interests:
             return 0.5
         
@@ -723,10 +680,10 @@ Consulta del usuario: {input}
         
         return matches / len(interests)
     
-    # Удален метод _generate_default_activities - используем только API данные
+    # Removed _generate_default_activities method - using only API data
     
     def _calculate_recommended_duration(self, activities: List[Dict]) -> str:
-        """Рассчитывает рекомендуемую продолжительность"""
+        """Calculates recommended duration"""
         total_activities = len(activities)
         if total_activities <= 2:
             return "1-2 días"
@@ -736,7 +693,7 @@ Consulta del usuario: {input}
             return "3-5 días"
     
     def _calculate_budget_estimate(self, activities: List[Dict], budget_level: str) -> Dict[str, str]:
-        """Рассчитывает оценку бюджета"""
+        """Calculates budget estimate"""
         free_activities = len([a for a in activities if a.get("price_range") == "free"])
         total_activities = len(activities)
         
@@ -748,7 +705,7 @@ Consulta del usuario: {input}
             return {"range": "€50-150", "per_person": "€25-75", "notes": "Balance entre calidad y precio"}
     
     def _get_age_groups(self, kids_ages: List[int]) -> List[str]:
-        """Определяет возрастные группы детей"""
+        """Determines children's age groups"""
         if not kids_ages:
             return ["adults_only"]
         
@@ -766,7 +723,7 @@ Consulta del usuario: {input}
         return list(set(groups))
     
     def _get_covered_interests(self, activities: List[Dict], interests: List[str]) -> List[str]:
-        """Определяет покрытые интересы"""
+        """Determines covered interests"""
         if not interests:
             return []
         
@@ -780,7 +737,7 @@ Consulta del usuario: {input}
         return covered
     
     def _get_weather_considerations(self) -> List[str]:
-        """Возвращает рекомендации по погоде"""
+        """Returns weather recommendations"""
         return [
             "Llevar ropa de abrigo en invierno",
             "Paraguas recomendado en primavera",
@@ -789,7 +746,7 @@ Consulta del usuario: {input}
         ]
     
     def _get_practical_tips(self) -> List[str]:
-        """Возвращает практические советы"""
+        """Returns practical tips"""
         return [
             "Reservar con antelación para actividades populares",
             "Llevar documentación para descuentos familiares",
@@ -798,7 +755,7 @@ Consulta del usuario: {input}
         ]
     
     def _format_activities_text(self, structured_data: ActivitiesResponse) -> str:
-        """Форматирует структурированные данные в читаемый текст"""
+        """Formats structured data into readable text"""
         text = f"# 🎯 Plan de Actividades Personalizado\n\n"
         text += f"**Total de actividades:** {structured_data.total_activities}\n"
         text += f"**Duración recomendada:** {structured_data.recommended_duration}\n\n"
@@ -819,100 +776,100 @@ Consulta del usuario: {input}
         
         return text
     
-    # Удален метод _create_fallback_structured_data - используем только API данные
+    # Removed _create_fallback_structured_data method - using only API data
     
     def _create_tools(self) -> List[Tool]:
-        """Создает инструменты для агента с приоритетами"""
+        """Creates tools for agent with priorities"""
         return [
             Tool(
                 name="analyze_age_compatibility",
-                description="""[ПРИОРИТЕТ 2] Анализ совместимости активностей с возрастными группами.
-                Используй для дополнительного анализа после получения данных от API.
-                Входные параметры: kids_ages (JSON массив возрастов)
-                Формат: analyze_age_compatibility('[8, 12]')
-                Возвращает: анализ по возрастным группам и рекомендации""",
+                description="""[PRIORITY 2] Analyze compatibility of activities with age groups.
+                Use for additional analysis after getting data from APIs.
+                Input parameters: kids_ages (JSON array of ages)
+                Format: analyze_age_compatibility('[8, 12]')
+                Returns: analysis by age groups and recommendations""",
                 func=self._analyze_age_compatibility
             ),
             Tool(
                 name="optimize_schedule",
-                description="""[ПРИОРИТЕТ 2] Оптимизация расписания с учетом энергетических пиков.
-                Используй для финальной оптимизации расписания.
-                Входные параметры: schedule_data (JSON с данными расписания)
-                Формат: optimize_schedule('{"activities": [...]}')
-                Возвращает: оптимизированное расписание по времени дня""",
+                description="""[PRIORITY 2] Optimize schedule considering energy peaks.
+                Use for final schedule optimization.
+                Input parameters: schedule_data (JSON with schedule data)
+                Format: optimize_schedule('{"activities": [...]}')
+                Returns: optimized schedule by time of day""",
                 func=self._optimize_schedule
             )
         ]
     
     def _create_prompt(self) -> PromptTemplate:
-        """Создает промпт для реакт-агента по схеме ReAct"""
+        """Creates prompt for react-agent using ReAct pattern"""
         return PromptTemplate(
-            template="""Eres un experto agente de actividades familiares en Madrid que sigue el patrón ReAct (Reasoning + Acting).
+            template="""You are an expert family activities agent in Madrid that follows the ReAct pattern (Reasoning + Acting).
 
-INFORMACIÓN DE LA FAMILIA:
-- Edades de los niños: {kids_ages}
-- Número de adultos: {adults_count}
-- Intereses: {interests}
-- País de origen: {origin_country}
-- Necesidades especiales: {special_needs}
-- Presupuesto: {budget_level}
-- Fechas de viaje: {travel_dates}
+FAMILY INFORMATION:
+- Children ages: {kids_ages}
+- Number of adults: {adults_count}
+- Interests: {interests}
+- Country of origin: {origin_country}
+- Special needs: {special_needs}
+- Budget: {budget_level}
+- Travel dates: {travel_dates}
 
-HERRAMIENTAS DISPONIBLES:
+AVAILABLE TOOLS:
 {tools}
 
-NOMBRES DE HERRAMIENTAS:
+TOOL NAMES:
 {tool_names}
 
-PRIORIDAD DE HERRAMIENTAS:
-1. **PRIMERA PRIORIDAD**: API externas (search_places_api, get_place_details_api, check_weather_api, search_events_api)
-2. **SEGUNDA PRIORIDAD**: Herramientas internas (search_activities, analyze_age_compatibility, optimize_schedule)
-3. **ÚLTIMA OPCIÓN**: create_activities_plan (solo si no hay otras opciones)
+TOOL PRIORITY:
+1. **FIRST PRIORITY**: External APIs (search_places_api, get_place_details_api, check_weather_api, search_events_api)
+2. **SECOND PRIORITY**: Internal tools (search_activities, analyze_age_compatibility, optimize_schedule)
+3. **LAST OPTION**: create_activities_plan (only if no other options)
 
-PATRÓN DE RAZONAMIENTO ReAct:
-**Thought**: [Analiza la consulta y determina qué información necesitas]
-**Action**: [Nombre de la herramienta a usar]
-**Action Input**: [Parámetros específicos para la herramienta]
-**Observation**: [Resultado de la herramienta]
-**Thought**: [Evalúa el resultado y decide el siguiente paso]
-**Action**: [Siguiente herramienta si es necesario]
-**Action Input**: [Parámetros]
-**Observation**: [Resultado]
-**Final Answer**: [Respuesta final estructurada]
+ReAct REASONING PATTERN:
+**Thought**: [Analyze the query and determine what information you need]
+**Action**: [Name of the tool to use]
+**Action Input**: [Specific parameters for the tool]
+**Observation**: [Tool result]
+**Thought**: [Evaluate the result and decide the next step]
+**Action**: [Next tool if necessary]
+**Action Input**: [Parameters]
+**Observation**: [Result]
+**Final Answer**: [Final structured response]
 
-REGLAS ESTRICTAS:
-1. **SIEMPRE** usa API externas PRIMERO si están disponibles
-2. **COMBINA** información de múltiples fuentes
-3. **VERIFICA** clima para actividades al aire libre
-4. **CONSIDERA** edad específica de los niños
-5. **INCLUYE** horarios y ubicaciones precisas
-6. **BALANCEA** actividades educativas y recreativas
+STRICT RULES:
+1. **ALWAYS** use external APIs FIRST if available
+2. **COMBINE** information from multiple sources
+3. **CHECK** weather for outdoor activities
+4. **CONSIDER** specific age of children
+5. **INCLUDE** precise schedules and locations
+6. **BALANCE** educational and recreational activities
 
-EJEMPLO DE FLUJO:
-**Thought**: Necesito encontrar actividades para niños de 8 y 12 años en Madrid
+FLOW EXAMPLE:
+**Thought**: I need to find activities for children aged 8 and 12 in Madrid
 **Action**: search_places_api
 **Action Input**: {{"query": "actividades familiares Madrid", "place_type": "tourist_attraction"}}
-**Observation**: [Lugares encontrados]
-**Thought**: Ahora voy a verificar el clima para recomendar actividades apropiadas
+**Observation**: [Places found]
+**Thought**: Now I'll check the weather to recommend appropriate activities
 **Action**: check_weather_api
 **Action Input**: {{"date": "2024-01-15"}}
-**Observation**: [Datos del clima]
-**Thought**: Voy a analizar la compatibilidad con las edades de los niños
+**Observation**: [Weather data]
+**Thought**: I'll analyze compatibility with children's ages
 **Action**: analyze_age_compatibility
 **Action Input**: {{"kids_ages": [8, 12]}}
-**Observation**: [Análisis de edades]
-**Final Answer**: [Plan personalizado basado en datos reales]
+**Observation**: [Age analysis]
+**Final Answer**: [Personalized plan based on real data]
 
-Pregunta del usuario: {input}
+User question: {input}
 
 {agent_scratchpad}""",
             input_variables=["input", "kids_ages", "adults_count", "interests", "origin_country", "special_needs", "budget_level", "travel_dates", "tools", "tool_names", "agent_scratchpad"]
         )
     
-    # Удален метод _search_activities - используем только API поиск
+    # Removed _search_activities method - using only API search
     
     def _analyze_age_compatibility(self, kids_ages: str) -> str:
-        """Анализ совместимости с возрастными группами"""
+        """Analysis of compatibility with age groups"""
         try:
             ages = json.loads(kids_ages) if kids_ages.startswith('[') else [8, 12]
             
@@ -935,10 +892,10 @@ Pregunta del usuario: {input}
             return json.dumps(analysis, ensure_ascii=False)
             
         except Exception as e:
-            return f"Error en análisis de edad: {str(e)}"
+            return f"Error in age analysis: {str(e)}"
     
     def _optimize_schedule(self, schedule_data: str) -> str:
-        """Оптимизация расписания"""
+        """Schedule optimization"""
         try:
             optimized_schedule = {
                 "morning": {
@@ -961,20 +918,18 @@ Pregunta del usuario: {input}
             return json.dumps(optimized_schedule, ensure_ascii=False)
             
         except Exception as e:
-            return f"Error en optimización: {str(e)}"
+            return f"Error in optimization: {str(e)}"
     
-    # Удален метод _matches_criteria - используем только API фильтрацию
     
-    # Удален метод _generate_simple_activities_plan - используем только API данные
     
-    # API методы
+    # API methods
     def _search_places_api(self, query: str, place_type: str = None) -> str:
-        """Поиск мест через Google Places API"""
+        """Search places through Google Places API"""
         try:
             if not self.api_services["google_places"]:
-                return json.dumps({"status": "error", "error": "Google Places API не настроен"})
+                return json.dumps({"status": "error", "error": "Google Places API not configured"})
             
-            # Реальный API вызов
+            # Real API call
             params = {
                 "query": query,
                 "location": "40.4168,-3.7038",  # Madrid coordinates
@@ -991,18 +946,13 @@ Pregunta del usuario: {input}
                 timeout=10
             )
             
-            print(f"🔍 Google Places API URL: {response.url}")
-            print(f"📊 Google Places API Status: {response.status_code}")
-            
             if response.status_code == 200:
                 data = response.json()
                 places = data.get("results", [])
-                print(f"📊 Google Places API Response: {data}")
-                print(f"📊 Found places: {len(places)}")
                 
-                # Форматируем результаты
+                # Format results
                 formatted_places = []
-                for place in places[:5]:  # Ограничиваем до 5 результатов
+                for place in places[:5]:  # Limit to 5 results
                     formatted_places.append({
                         "name": place.get("name"),
                         "place_id": place.get("place_id"),
@@ -1032,10 +982,10 @@ Pregunta del usuario: {input}
             })
     
     def _get_place_details_api(self, place_id: str) -> str:
-        """Получение детальной информации о месте"""
+        """Get detailed information about a place"""
         try:
             if not self.api_services["google_places"]:
-                return json.dumps({"status": "error", "error": "Google Places API не настроен"})
+                return json.dumps({"status": "error", "error": "Google Places API not configured"})
             
             params = {
                 "place_id": place_id,
@@ -1063,7 +1013,7 @@ Pregunta del usuario: {input}
                         "opening_hours": result.get("opening_hours", {}),
                         "phone": result.get("formatted_phone_number"),
                         "website": result.get("website"),
-                        "reviews": result.get("reviews", [])[:3],  # Последние 3 отзыва
+                        "reviews": result.get("reviews", [])[:3],  # Last 3 reviews
                         "types": result.get("types", [])
                     }
                 })
@@ -1080,12 +1030,12 @@ Pregunta del usuario: {input}
             })
     
     def _check_weather_api(self, date: str) -> str:
-        """Проверка погоды через OpenWeatherMap API"""
+        """Check weather through OpenWeatherMap API"""
         try:
             if not self.api_services["weather"]:
-                return json.dumps({"status": "error", "error": "Weather API не настроен"})
+                return json.dumps({"status": "error", "error": "Weather API not configured"})
             
-            # Реальный вызов OpenWeatherMap API
+            # Real OpenWeatherMap API call
             api_key = self.api_services["weather"]["api_key"]
             base_url = self.api_services["weather"]["base_url"]
             
@@ -1131,7 +1081,7 @@ Pregunta del usuario: {input}
             })
     
     def _get_weather_recommendation(self, temp: float, condition: str) -> str:
-        """Генерирует рекомендацию на основе погоды"""
+        """Generates recommendation based on weather"""
         if temp < 10:
             return "Llevar ropa de abrigo, ideal para actividades en interiores"
         elif temp > 25:
@@ -1142,12 +1092,12 @@ Pregunta del usuario: {input}
             return "Ideal para actividades al aire libre"
     
     def _search_events_api(self, query: str, date: str = None) -> str:
-        """Поиск событий через Eventbrite API"""
+        """Search events through Eventbrite API"""
         try:
             if not self.api_services["events"]:
-                return json.dumps({"status": "error", "error": "Events API не настроен"})
+                return json.dumps({"status": "error", "error": "Events API not configured"})
             
-            # Реальный вызов Eventbrite API
+            # Real Eventbrite API call
             api_key = self.api_services["events"]["api_key"]
             base_url = self.api_services["events"]["base_url"]
             
@@ -1156,7 +1106,7 @@ Pregunta del usuario: {input}
                 "Content-Type": "application/json"
             }
             
-            # Поиск событий в Мадриде
+            # Search events in Madrid
             params = {
                 "q": query,
                 "location.address": "Madrid, Spain",
@@ -1175,7 +1125,7 @@ Pregunta del usuario: {input}
                 data = response.json()
                 events = []
                 
-                for event in data.get("events", [])[:5]:  # Ограничиваем до 5 событий
+                for event in data.get("events", [])[:5]:  # Limit to 5 events
                     event_data = {
                         "name": event.get("name", {}).get("text", ""),
                         "date": event.get("start", {}).get("local", "").split("T")[0] if event.get("start", {}).get("local") else date or "",
@@ -1205,7 +1155,7 @@ Pregunta del usuario: {input}
             })
     
     def _get_event_price(self, event: dict) -> str:
-        """Извлекает цену события"""
+        """Extracts event price"""
         try:
             ticket_classes = event.get("ticket_availability", {}).get("ticket_classes", [])
             if ticket_classes:
@@ -1216,7 +1166,7 @@ Pregunta del usuario: {input}
             return "Gratis"
     
     def _get_event_age_range(self, event: dict, query: str) -> str:
-        """Определяет возрастной диапазон события"""
+        """Determines event age range"""
         name = event.get("name", {}).get("text", "").lower()
         if "niños" in name or "niños" in query.lower():
             return "5-12 años"
@@ -1226,5 +1176,5 @@ Pregunta del usuario: {input}
             return "Todas las edades"
 
 def create_activities_agent() -> ActivitiesAgent:
-    """Создает экземпляр ActivitiesAgent для RouterAgent"""
+    """Creates ActivitiesAgent instance for RouterAgent"""
     return ActivitiesAgent()
