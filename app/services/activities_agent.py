@@ -61,7 +61,7 @@ class ActivitiesAgent:
             max_iterations=2,
             handle_parsing_errors=True,
             return_intermediate_steps=True,
-            early_stopping_method="generate"
+            early_stopping_method="force"
         )
         
         print("✅ ActivitiesAgent инициализирован с API функциональностью")

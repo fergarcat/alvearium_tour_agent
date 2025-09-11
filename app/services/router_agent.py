@@ -7,7 +7,7 @@ import os
 from typing import Dict, List
 from langchain_openai import ChatOpenAI
 from langchain.prompts import PromptTemplate
-from app.models.family_models import PersonalizedQuery
+from models.family_models import PersonalizedQuery
 
 class RouterAgent:
     """
