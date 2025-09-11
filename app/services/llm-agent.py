@@ -105,7 +105,7 @@ def get_first_missing_required_field() -> str:
 # -----------------------------
 # Query processing
 # -----------------------------
-def process_user_input(user_input: str):
+def process_user_input(user_input: str, conversation_state):
     """Extract structured trip info and update conversation state."""
     
     try:
