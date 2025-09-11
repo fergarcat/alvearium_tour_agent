@@ -143,18 +143,23 @@ class FamilyProfileSupabase:
                 
                 # Обновляем данные семьи
                 family_update = self.to_supabase_family_data()
+                print(f"🔍 Данные для обновления семьи: {family_update}")
                 del family_update["family_id"]  # Убираем family_id из обновления
                 
-                self._supabase.table("families").update(family_update).eq("id", family_uuid).execute()
+                update_result = self._supabase.table("families").update(family_update).eq("id", family_uuid).execute()
+                print(f"🔍 Результат обновления семьи: {update_result.data}")
                 
                 # Обновляем членов семьи (удаляем старых и создаем новых)
-                self._supabase.table("family_members").delete().eq("family_id", family_uuid).execute()
+                delete_result = self._supabase.table("family_members").delete().eq("family_id", family_uuid).execute()
+                print(f"🔍 Результат удаления старых членов: {delete_result.data}")
                 
                 members_data = self.to_supabase_members_data()
+                print(f"🔍 Данные членов семьи: {members_data}")
                 for member in members_data:
                     member["family_id"] = family_uuid
                 
-                self._supabase.table("family_members").insert(members_data).execute()
+                members_result = self._supabase.table("family_members").insert(members_data).execute()
+                print(f"🔍 Результат создания новых членов: {members_result.data}")
                 
                 print(f"✅ Профиль семьи обновлен в Supabase: {family_uuid}")
                 return family_uuid
@@ -361,7 +366,9 @@ class FamilyProfileSupabase:
                 # duration_days убрано - база данных сама вычислит как (departure_date - arrival_date)
             }
             
+            print(f"🔍 Данные travel_request: {request_record}")
             result = self._supabase.table("travel_requests").insert(request_record).execute()
+            print(f"🔍 Результат сохранения travel_request: {result.data}")
             
             if result.data:
                 print(f"✅ Запрос с пожеланиями сохранен: {result.data[0]['id']}")

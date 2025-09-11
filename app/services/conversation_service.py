@@ -153,20 +153,33 @@ class ConversationService:
             )
             
             # Сохраняем профиль в Supabase
-            if profile.save_to_supabase():
+            print(f"🔍 ConversationService: Пытаемся сохранить профиль семьи {state.family_id}")
+            print(f"🔍 Данные профиля: kids_ages={profile.kids_ages}, adults_count={profile.adults_count}, interests={profile.interests}")
+            
+            save_result = profile.save_to_supabase()
+            print(f"🔍 Результат сохранения профиля: {save_result}")
+            
+            if save_result:
                 print(f"✅ ConversationService: Профиль семьи {state.family_id} создан успешно")
                 
                 # Сохраняем budget_level в travel_requests
                 budget_level = state.collected_data.get("budget_level", "medium")
                 if budget_level:
-                    # Получаем даты из собранных данных или используем дефолтные
-                    start_date = state.collected_data.get("start_date", "")
-                    end_date = state.collected_data.get("end_date", "")
+                    # Получаем даты из собранных данных
+                    travel_dates = state.collected_data.get("travel_dates", "")
+                    start_date = ""
+                    end_date = ""
                     
-                    # Если даты не указаны, не передаем их в travel_requests
+                    # Парсим даты из travel_dates
+                    if travel_dates and " to " in travel_dates:
+                        start_date, end_date = travel_dates.split(" to ")
+                    elif travel_dates and " - " in travel_dates:
+                        start_date, end_date = travel_dates.split(" - ")
+                    
+                    # Если даты не указаны, используем дефолтные
                     if not start_date or not end_date:
-                        start_date = ""
-                        end_date = ""
+                        start_date = "2024-12-15"
+                        end_date = "2024-12-20"
                     
                     profile.save_travel_request(
                         request_type="profile_creation",
@@ -189,14 +202,18 @@ class ConversationService:
                 state.mark_profile_complete()
                 self.conversation_manager.update_conversation_state(state.conversation_id, state)
                 
+                # Генерируем персонализированный ответ через RouterAgent
+                personalized_response = self._generate_personalized_response(profile, state.collected_data)
+                
                 return {
-                    "response": self._generate_profile_completion_message(profile),
+                    "response": personalized_response,
                     "next_step": None,
                     "collected_info": state.collected_data,
                     "profile_complete": True,
                     "action": "create_profile"
                 }
             else:
+                print(f"❌ ConversationService: Не удалось сохранить профиль семьи {state.family_id}")
                 return {
                     "response": "Lo siento, hubo un error al guardar tu perfil. Inténtalo de nuevo.",
                     "next_step": state.current_step,
@@ -214,6 +231,40 @@ class ConversationService:
                 "profile_complete": False,
                 "action": "error"
             }
+    
+    def _generate_personalized_response(self, profile: FamilyProfileSupabase, collected_data: Dict[str, Any]) -> str:
+        """Генерирует персонализированный ответ через RouterAgent"""
+        try:
+            from services.router_agent import RouterAgent
+            
+            # Создаем данные для RouterAgent
+            routing_data = {
+                "query": "planificar viaje a Madrid",
+                "family_id": profile.family_id,
+                "profile": {
+                    "kids_ages": profile.kids_ages,
+                    "adults_count": profile.adults_count,
+                    "interests": profile.interests,
+                    "origin_country": profile.origin_country,
+                    "special_needs": profile.special_needs or [],
+                    "budget_level": collected_data.get("budget_level", "medium"),
+                    "travel_dates": collected_data.get("travel_dates", "")
+                }
+            }
+            
+            # Инициализируем RouterAgent
+            router = RouterAgent()
+            
+            # Генерируем персонализированный ответ
+            personalized_response = router.process_routing_data(routing_data)
+            
+            print(f"✅ ConversationService: Персонализированный ответ сгенерирован")
+            return personalized_response
+            
+        except Exception as e:
+            print(f"❌ ConversationService: Ошибка генерации персонализированного ответа: {e}")
+            # Fallback на статическое сообщение
+            return self._generate_profile_completion_message(profile)
     
     def _generate_profile_completion_message(self, profile: FamilyProfileSupabase) -> str:
         """Генерирует сообщение о завершении сбора профиля"""

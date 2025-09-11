@@ -7,7 +7,7 @@ import chatAPI from '../api.js';
 
 function Chatbot() {
   const [conversationId, setConversationId] = useState(null);
-  const [familyId] = useState('default'); // Можно сделать динамическим
+  const [familyId] = useState(`family_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`); // Уникальный ID
   const [messages, setMessages] = useImmer([]);
   const [newMessage, setNewMessage] = useState('');
   const [isInitialized, setIsInitialized] = useState(false);
