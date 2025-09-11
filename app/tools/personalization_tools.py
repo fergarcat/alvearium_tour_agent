@@ -141,15 +141,35 @@ def extract_family_info_tool(query: str) -> str:
         
         # Извлекаем особые потребности
         special_needs = []
-        if any(word in query_lower for word in ["autismo", "autista"]):
-            special_needs.append("autismo")
-        if any(word in query_lower for word in ["silla", "ruedas", "discapacidad"]):
-            special_needs.append("movilidad_reducida")
-        if any(word in query_lower for word in ["alergia", "alérgico"]):
-            special_needs.append("alergias_alimentarias")
         
-        if special_needs:
-            extracted_info["special_needs"] = special_needs
+        # Проверяем негативные ответы
+        negative_patterns = [
+            r'^no$',  # "no"
+            r'^no\s+hay',  # "no hay"
+            r'^no\s+tengo',  # "no tengo"
+            r'^ninguna',  # "ninguna"
+            r'^todo\s+normal',  # "todo normal"
+            r'^no\s+tenemos',  # "no tenemos"
+            r'^sin\s+necesidades',  # "sin necesidades"
+            r'^no\s+necesidades',  # "no necesidades"
+        ]
+        
+        is_negative = any(re.search(pattern, query_lower) for pattern in negative_patterns)
+        
+        if is_negative:
+            # Негативный ответ - нет особых потребностей
+            extracted_info["special_needs"] = []
+        else:
+            # Проверяем положительные ответы
+            if any(word in query_lower for word in ["autismo", "autista"]):
+                special_needs.append("autismo")
+            if any(word in query_lower for word in ["silla", "ruedas", "discapacidad"]):
+                special_needs.append("movilidad_reducida")
+            if any(word in query_lower for word in ["alergia", "alérgico"]):
+                special_needs.append("alergias_alimentarias")
+            
+            if special_needs:
+                extracted_info["special_needs"] = special_needs
         
         # Умная обработка случаев, когда парсинг не сработал
         if not extracted_info:
@@ -700,20 +720,60 @@ def route_to_specialized_agent_tool(trip_analysis: str, family_profile: str) -> 
     except Exception as e:
         return f"Error al enrutar a agente especializado: {str(e)}"
 
-def sequential_question_tool(user_response: str, family_id: str) -> str:
+def sequential_question_tool(user_response: str, family_id: str, current_step: str = None) -> str:
     """
     Новый инструмент для последовательного сбора информации о семье
-    Заменяет сложный промпт простой логикой парсинга
+    Сначала пробует LLM, если недоступен - использует regex
     """
     try:
         import json
         from models.family_models_supabase import FamilyProfileSupabase
         
-        # Парсим ответ пользователя
-        extracted_info = extract_family_info_tool(user_response)
-        info_data = json.loads(extracted_info)
-        
-        print(f"🔍 Sequential Question Tool: Извлеченная информация: {info_data}")
+        # Сначала пробуем LLM интерпретацию
+        try:
+            print("🤖 Sequential Question Tool: Пробуем LLM интерпретацию...")
+            
+            # Определяем контекст вопроса на основе переданного шага
+            if current_step == "kids_ages":
+                current_question = "¿Cuáles son las edades de tus hijos?"
+            elif current_step == "adults_count":
+                current_question = "¿Cuántos adultos viajarán?"
+            elif current_step == "budget_level":
+                current_question = "¿Cuál es tu presupuesto aproximado para el viaje?"
+            elif current_step == "travel_dates":
+                current_question = "¿Cuándo planeas viajar?"
+            elif current_step == "interests":
+                current_question = "¿Qué les gusta hacer a tu familia?"
+            elif current_step == "origin_country":
+                current_question = "¿De qué país vienen?"
+            elif current_step == "special_needs":
+                current_question = "¿Tienes alguna preferencia especial para el viaje?"
+            else:
+                current_question = "¿Cuáles son las edades de tus hijos?"
+            
+            collected_info = "{}"
+            
+            print(f"🔍 Контекст: шаг={current_step or 'unknown'}, вопрос={current_question}")
+            
+            llm_result = llm_interpretation_tool(user_response, current_question, collected_info)
+            info_data = json.loads(llm_result)
+            
+            # Проверяем, получили ли мы полезную информацию
+            if "message" not in info_data and any(key in info_data for key in ["kids_ages", "adults_count", "budget_level", "travel_dates", "interests", "origin_country", "special_needs"]):
+                print(f"✅ LLM успешно извлек информацию: {info_data}")
+            else:
+                print(f"⚠️ LLM не смог извлечь информацию, пробуем regex: {info_data}")
+                raise Exception("LLM не смог извлечь информацию")
+                
+        except Exception as e:
+            print(f"❌ LLM недоступен или не смог обработать: {e}")
+            print("🔄 Переключаемся на regex парсинг...")
+            
+            # Fallback на regex парсинг
+            extracted_info = extract_family_info_tool(user_response)
+            info_data = json.loads(extracted_info)
+            
+            print(f"🔍 Sequential Question Tool (regex): Извлеченная информация: {info_data}")
         
         # Определяем, какая информация была получена
         if "kids_ages" in info_data:
@@ -835,30 +895,53 @@ CAMPOS POSIBLES:
 - origin_country: país de origen (ej: "España")
 - special_needs: array de necesidades especiales (ej: ["autismo"] o [] si no hay)
 
-REGLAS:
-1. Si la respuesta es sobre niños, extrae kids_ages
-2. Si la respuesta es sobre adultos, extrae adults_count
-3. Si la respuesta es sobre presupuesto, extrae budget_level
-4. Si la respuesta es sobre fechas, extrae travel_dates
-5. Si la respuesta es sobre intereses, extrae interests
-6. Si la respuesta es sobre país, extrae origin_country
-7. Si la respuesta es sobre necesidades especiales, extrae special_needs:
+REGLAS IMPORTANTES:
+1. **CONTEXTO ES CLAVE**: Interpreta la respuesta basándote en la pregunta actual
+2. Si la pregunta es sobre edades de niños y la respuesta contiene números, extrae kids_ages
+3. Si la pregunta es sobre cantidad de adultos y la respuesta contiene un número, extrae adults_count
+4. Si la pregunta es sobre presupuesto, extrae budget_level
+5. Si la pregunta es sobre fechas, extrae travel_dates
+6. Si la pregunta es sobre intereses, extrae interests
+7. Si la pregunta es sobre país, extrae origin_country
+8. Si la pregunta es sobre necesidades especiales, extrae special_needs:
    - Si menciona necesidades específicas, inclúyelas en el array
-   - Si dice "no", "no hay", "no las tengo", "todo normal", devuelve special_needs: []
-8. Si no puedes extraer información específica, devuelve solo el campo "message" con una explicación
-9. Si la respuesta es confusa o incompleta, devuelve "message" pidiendo aclaración
+   - Si dice "no", "no hay", "no las tengo", "todo normal", "ninguna", "no tengo", devuelve special_needs: []
+9. **NÚMEROS SIMPLES**: Si la respuesta es solo un número (ej: "7", "2", "4"):
+   - Y la pregunta es sobre adultos → adults_count
+   - Y la pregunta es sobre niños → kids_ages
+10. Si no puedes extraer información específica, devuelve solo el campo "message" con una explicación
+11. Si la respuesta es confusa o incompleta, devuelve "message" pidiendo aclaración
 
 FORMATO DE RESPUESTA:
 Solo devuelve JSON válido, sin texto adicional.
 
 Ejemplos:
+**Para pregunta sobre niños:**
+- "8, 12" → {{"kids_ages": [8, 12]}}
+- "5 8" → {{"kids_ages": [5, 8]}}
+- "3, 7, 10" → {{"kids_ages": [3, 7, 10]}}
 - "Tengo 2 niños de 5 y 8 años" → {{"kids_ages": [5, 8]}}
+
+**Para pregunta sobre adultos:**
+- "7" → {{"adults_count": 7}}
+- "2" → {{"adults_count": 2}}
 - "Somos 4 adultos" → {{"adults_count": 4}}
+- "Viajamos 3 personas" → {{"adults_count": 3}}
+
+**Para otras preguntas:**
 - "Presupuesto medio" → {{"budget_level": "medium"}}
 - "Del 15 al 20 de octubre" → {{"travel_dates": "2024-10-15 to 2024-10-20"}}
+
+**Para pregunta sobre necesidades especiales:**
+- "No" → {{"special_needs": []}}
+- "No hay" → {{"special_needs": []}}
+- "No tengo" → {{"special_needs": []}}
+- "Ninguna" → {{"special_needs": []}}
+- "Todo normal" → {{"special_needs": []}}
 - "No hay necesidades especiales" → {{"special_needs": []}}
 - "No, todo normal" → {{"special_needs": []}}
-- "No" (sobre necesidades especiales) → {{"special_needs": []}}
+
+**Para respuestas confusas:**
 - "No entiendo" → {{"message": "No pude entender tu respuesta. Por favor, responde de manera más específica."}}""",
             input_variables=["current_question", "collected_info", "user_response"]
         )

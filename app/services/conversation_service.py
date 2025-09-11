@@ -73,7 +73,7 @@ class ConversationService:
         """
         try:
             # Используем sequential_question_tool для обработки ответа
-            result = sequential_question_tool(message, state.family_id)
+            result = sequential_question_tool(message, state.family_id, state.current_step)
             data = json.loads(result)
             
             print(f"🔍 ConversationService: Обработка шага '{state.current_step}'")
@@ -147,7 +147,6 @@ class ConversationService:
                 interests=state.collected_data.get("interests", []),
                 origin_country=state.collected_data.get("origin_country", "Spain"),
                 special_needs=state.collected_data.get("special_needs", []),
-                budget_level=state.collected_data.get("budget_level", "medium"),
                 language_preference=state.collected_data.get("language_preference", "es"),
                 accommodation_type=state.collected_data.get("accommodation_type", "hotel"),
                 transportation_preference=state.collected_data.get("transportation_preference", "public")
@@ -156,6 +155,35 @@ class ConversationService:
             # Сохраняем профиль в Supabase
             if profile.save_to_supabase():
                 print(f"✅ ConversationService: Профиль семьи {state.family_id} создан успешно")
+                
+                # Сохраняем budget_level в travel_requests
+                budget_level = state.collected_data.get("budget_level", "medium")
+                if budget_level:
+                    # Получаем даты из собранных данных или используем дефолтные
+                    start_date = state.collected_data.get("start_date", "")
+                    end_date = state.collected_data.get("end_date", "")
+                    
+                    # Если даты не указаны, не передаем их в travel_requests
+                    if not start_date or not end_date:
+                        start_date = ""
+                        end_date = ""
+                    
+                    profile.save_travel_request(
+                        request_type="profile_creation",
+                        request_data={
+                            "family_profile": {
+                                "kids_ages": state.collected_data.get("kids_ages", []),
+                                "adults_count": state.collected_data.get("adults_count", 0),
+                                "interests": state.collected_data.get("interests", []),
+                                "special_needs": state.collected_data.get("special_needs", []),
+                                "origin_country": state.collected_data.get("origin_country", "Spain")
+                            }
+                        },
+                        budget_level=budget_level,
+                        start_date=start_date,
+                        end_date=end_date
+                    )
+                    print(f"✅ ConversationService: Budget level '{budget_level}' сохранен в travel_requests")
                 
                 # Отмечаем профиль как собранный
                 state.mark_profile_complete()
@@ -193,10 +221,14 @@ class ConversationService:
         age_group = profile.get_age_group()
         interests = ", ".join(profile.interests) if profile.interests else "No especificados"
         
+        # Получаем budget_level из текущего состояния разговора
+        current_state = self.conversation_manager.get_conversation_state(profile.family_id, profile.family_id)
+        budget_level = current_state.collected_data.get("budget_level", "medium") if current_state else "medium"
+        
         return f"""🎉 ¡Perfecto! He creado tu perfil familiar personalizado:
 
 👨‍👩‍👧‍👦 **Tu familia:** {family_size} miembros ({age_group})
-💰 **Presupuesto:** {profile.budget_level}
+💰 **Presupuesto:** {budget_level}
 🎯 **Intereses:** {interests}
 🌍 **Origen:** {profile.origin_country}
 ✨ **Necesidades especiales:** {', '.join(profile.special_needs) if profile.special_needs else 'Ninguna'}
