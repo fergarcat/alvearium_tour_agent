@@ -94,6 +94,7 @@ async def global_exception_handler(request, exc):
 async def startup_event():
     """Событие запуска приложения"""
     required_vars = ["SUPABASE_URL", "SUPABASE_ANON_KEY", "OPENAI_API_KEY"]
+    optional_vars = ["GOOGLE_PLACES_API_KEY", "OPENWEATHER_API_KEY", "EVENTBRITE_API_KEY"]
     missing_vars = [var for var in required_vars if not os.getenv(var)]
     
     if missing_vars:
@@ -101,6 +102,17 @@ async def startup_event():
         print("   Некоторые функции могут работать некорректно")
     else:
         print("✅ Все необходимые переменные окружения настроены")
+    
+    # Проверяем опциональные API ключи
+    available_apis = []
+    for var in optional_vars:
+        if os.getenv(var):
+            available_apis.append(var.replace("_API_KEY", "").replace("_", " ").title())
+    
+    if available_apis:
+        print(f"🔑 Доступные API: {', '.join(available_apis)}")
+    else:
+        print("ℹ️ API ключи не настроены - будут использоваться моковые данные")
 
 if __name__ == "__main__":
     import uvicorn

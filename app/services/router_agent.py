@@ -7,7 +7,7 @@ import os
 from typing import Dict, List
 from langchain_openai import ChatOpenAI
 from langchain.prompts import PromptTemplate
-from models.family_models import PersonalizedQuery
+from app.models.family_models import PersonalizedQuery
 
 class RouterAgent:
     """
@@ -27,15 +27,24 @@ class RouterAgent:
             temperature=0
         )
         
-        # Специализированные агенты (пока заглушки)
+        # Специализированные агенты
         self.specialized_agents = {
             "hotels": None,      # Агент отелей
             "restaurants": None, # Агент ресторанов  
-            "activities": None,  # Агент активностей
+            "activities": self._init_activities_agent(),  # Агент активностей
             "transport": None    # Агент транспорта
         }
         
         print("✅ RouterAgent инициализирован")
+    
+    def _init_activities_agent(self):
+        """Инициализирует ActivitiesAgent"""
+        try:
+            from services.activities_agent import create_activities_agent
+            return create_activities_agent()
+        except Exception as e:
+            print(f"⚠️ RouterAgent: Не удалось инициализировать ActivitiesAgent: {e}")
+            return None
     
     def process_routing_data(self, routing_data: Dict) -> str:
         """
@@ -76,15 +85,24 @@ class RouterAgent:
     def _determine_needed_agents(self, routing_data: Dict) -> List[str]:
         """Определяет, какие специализированные агенты нужны"""
         needed_agents = []
+        query = routing_data.get("query", "").lower()
         
-        if routing_data.get("needs_hotels", False):
-            needed_agents.append("hotels")
-        if routing_data.get("needs_restaurants", False):
-            needed_agents.append("restaurants")
-        if routing_data.get("needs_activities", False):
+        # Автоматическое определение нужных агентов на основе запроса
+        if any(word in query for word in ["actividades", "entretenimiento", "diversión", "museos", "parques", "atracciones"]):
             needed_agents.append("activities")
-        if routing_data.get("needs_transport", False):
+        
+        if any(word in query for word in ["hotel", "alojamiento", "dormir", "hospedaje"]):
+            needed_agents.append("hotels")
+            
+        if any(word in query for word in ["comer", "restaurante", "cena", "almuerzo", "comida"]):
+            needed_agents.append("restaurants")
+            
+        if any(word in query for word in ["transporte", "llegar", "moverse", "metro", "autobús"]):
             needed_agents.append("transport")
+        
+        # Если агенты не определены автоматически, используем дефолтные
+        if not needed_agents:
+            needed_agents = ["activities"]  # По умолчанию предлагаем активности
         
         return needed_agents
     
@@ -108,6 +126,10 @@ class RouterAgent:
         """Вызывает специализированный агент с полной информацией о семье"""
         profile = routing_data.get("profile", {})
         family_id = routing_data.get("family_id", "unknown")
+        
+        # Если это агент активностей, используем реальный ActivitiesAgent
+        if agent_name == "activities" and self.specialized_agents["activities"]:
+            return self.specialized_agents["activities"].process_request(routing_data)
         query = routing_data.get("query", "")
         
         # Формируем контекст с полной информацией о семье

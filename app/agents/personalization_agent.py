@@ -10,7 +10,7 @@ from langchain.memory import ConversationBufferMemory
 # Импорты из модульной структуры
 from models.family_models_supabase import FamilyProfileSupabase, PersonalizedQuery
 from core.data_collector import FamilyDataCollector
-from core.router_agent import RouterAgent
+from services.router_agent import RouterAgent
 from tools.personalization_tools import (
     extract_family_info_tool,
     get_family_profile_tool,

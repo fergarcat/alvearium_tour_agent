@@ -8,3 +8,4 @@ langchain-openai
 supabase
 aiohttp>=3.10
 openai
+requests==2.31.0

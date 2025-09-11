@@ -5,9 +5,9 @@
 
 import json
 from typing import Dict, Any, Optional
-from models.conversation_models import ConversationState, CollectionStepResponse, conversation_manager
-from tools.personalization_tools import sequential_question_tool, extract_family_info_tool
-from models.family_models_supabase import FamilyProfileSupabase
+from app.models.conversation_models import ConversationState, CollectionStepResponse, conversation_manager
+from app.tools.personalization_tools import sequential_question_tool, extract_family_info_tool
+from app.models.family_models_supabase import FamilyProfileSupabase
 
 class ConversationService:
     """Сервис для управления разговорами и сбором данных"""
