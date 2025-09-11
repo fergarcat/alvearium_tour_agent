@@ -221,3 +221,8 @@ tmp/
 .vscode/
 .idea/
 
+#Tasks jsons
+activities.json
+hotels.json
+restaurants.json
+transportation.json
