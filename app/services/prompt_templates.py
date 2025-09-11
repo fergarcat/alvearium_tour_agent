@@ -77,9 +77,13 @@ PLAN_PROMPT = PromptTemplate(
 )
 
 
-
-
-
+GUIDE_PROMPT = PromptTemplate(
+    template=(
+        "You are a tourist assistant helping the user plan a trip to Madrid.\n"
+        "Your are gettin the {preferences} of the user in a json file.\n\n"
+        "Return a comprehensive and engaging detailed trip plan in markdown format\n"
+    )
+)
 
 # # Existing specialized prompt infos for routing
 # PROMPT_INFOS = [

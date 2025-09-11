@@ -1,5 +1,5 @@
 from crewai import Agent
-from utils.llm_config import llm
+from app.utils.llm_config import llm
 
 magic_agent = Agent(
     role="Ratoncito Pérez",

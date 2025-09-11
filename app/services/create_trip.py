@@ -1,16 +1,16 @@
 import json
-from services.accommodation_agent import hotel_agent
-from services.restaurant_agent import restaurant_agent
-from services.activities_agent import activities_agent
-from services.transport_agent import transport_agent
-from services.itinerary_agent import itinerary_agent
+from app.services.accommodation_agent import hotel_agent
+from app.services.restaurant_agent import restaurant_agent
+from app.services.activities_agent import activities_agent
+from app.services.transport_agent import transport_agent
+from app.services.itinerary_agent import itinerary_agent
+
 
 def create_trip(conversation_state: dict) -> dict:
     """
-    Orchestrates trip planning by passing conversation_state to all agents,
+    Orchestrates trip planning by passing conversation_state to all CrewAI agents,
     collecting their responses, and returning a final aggregated JSON.
     """
-    
     try:
         aggregated_results = {}
 
@@ -18,7 +18,7 @@ def create_trip(conversation_state: dict) -> dict:
         # 1. Hotels
         # -----------------------------
         if conversation_state.get("hotels") and conversation_state["hotels"] != "Not specified":
-            aggregated_results["hotels"] = hotel_agent.run(conversation_state["hotels"])
+            aggregated_results["hotels"] = hotel_agent.execute({"hotels": conversation_state["hotels"]})
         else:
             aggregated_results["hotels"] = {}
 
@@ -26,7 +26,7 @@ def create_trip(conversation_state: dict) -> dict:
         # 2. Restaurants
         # -----------------------------
         if conversation_state.get("restaurants") and conversation_state["restaurants"] != "Not specified":
-            aggregated_results["restaurants"] = restaurant_agent.run(conversation_state["restaurants"])
+            aggregated_results["restaurants"] = restaurant_agent.execute({"restaurants": conversation_state["restaurants"]})
         else:
             aggregated_results["restaurants"] = {}
 
@@ -34,7 +34,7 @@ def create_trip(conversation_state: dict) -> dict:
         # 3. Activities
         # -----------------------------
         if conversation_state.get("activities") and conversation_state["activities"] != "Not specified":
-            aggregated_results["activities"] = activities_agent.run(conversation_state["activities"])
+            aggregated_results["activities"] = activities_agent.execute({"activities": conversation_state["activities"]})
         else:
             aggregated_results["activities"] = {}
 
@@ -42,19 +42,14 @@ def create_trip(conversation_state: dict) -> dict:
         # 4. Transportation
         # -----------------------------
         if conversation_state.get("transportation") and conversation_state["transportation"] != "Not specified":
-            aggregated_results["transportation"] = transport_agent.run(conversation_state["transportation"])
+            aggregated_results["transportation"] = transport_agent.execute({"transportation": conversation_state["transportation"]})
         else:
             aggregated_results["transportation"] = {}
 
         # -----------------------------
         # 5. Itinerary
         # -----------------------------
-        aggregated_results["itinerary"] = itinerary_agent.run(conversation_state)
-
-        # # -----------------------------
-        # # 6. Include original conversation_state
-        # # -----------------------------
-        # aggregated_results["trip_data"] = conversation_state
+        aggregated_results["itinerary"] = itinerary_agent.execute(conversation_state)
 
         return aggregated_results
 
@@ -63,11 +58,11 @@ def create_trip(conversation_state: dict) -> dict:
         print(traceback.format_exc())
         return {"error": str(e)}
 
+
 # -----------------------------
 # Example usage
 # -----------------------------
 if __name__ == "__main__":
-    # Example conversation_state
     conversation_state_example = {
         "adults": "2",
         "children": "1",
