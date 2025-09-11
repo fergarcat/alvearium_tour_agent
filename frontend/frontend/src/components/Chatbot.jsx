@@ -182,6 +182,54 @@ function Chatbot() {
       position: 'relative',
       backgroundColor: 'white'
     }}>
+      {/* Header con Ratoncito Pérez */}
+      <div style={{
+        background: 'linear-gradient(135deg, #282524 0%, #dea142 50%, #f8d9a4 100%)',
+        color: 'white',
+        padding: '24px',
+        position: 'relative'
+      }}>
+        {/* Close button */}
+        <button style={{
+          position: 'absolute',
+          top: '16px',
+          right: '16px',
+          background: 'none',
+          border: 'none',
+          color: 'rgba(255,255,255,0.8)',
+          fontSize: '20px',
+          cursor: 'pointer'
+        }}>×</button>
+        
+        {/* Logo del Ratoncito */}
+        <img 
+          src="/logo-raton.png" 
+          alt="Ratoncito Pérez" 
+          width={100} 
+          height={100}
+          style={{ marginBottom: '16px' }}
+        />
+        
+        {/* Title */}
+        <h1 style={{
+          fontSize: '24px',
+          fontWeight: '600',
+          marginBottom: '8px',
+          margin: 0
+        }}>Ratoncito Pérez</h1>
+        
+        {/* Description */}
+        <p style={{
+          fontSize: '12px',
+          opacity: 0.9,
+          lineHeight: '1.4',
+          margin: 0,
+          maxWidth: '280px'
+        }}>
+          Hola! Soy el Ratoncito Pérez, tu guía personal de Madrid. ¿En qué puedo ayudarte hoy?
+        </p>
+      </div>
+
       {/* Сообщение об ошибке */}
       {error && (
         <div style={{
@@ -210,11 +258,11 @@ function Chatbot() {
       />
       
       {/* Botón flotante */}
-      <div style={{ position: 'absolute', bottom: '16px', right: '16px' }}>
+      <div style={{ position: 'absolute', bottom: '20px', right: '20px' }}>
         <button style={{
           width: '48px',
           height: '48px',
-          backgroundColor: '#3b82f6',
+          backgroundColor: '#dea142',
           color: 'white',
           borderRadius: '50%',
           border: 'none',
@@ -222,9 +270,9 @@ function Chatbot() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+          boxShadow: '0 4px 12px rgba(222, 161, 66, 0.4)'
         }}>
-          <FiMessageCircle size={24} />
+          <FiMessageCircle size={20} />
         </button>
       </div>
     </div>

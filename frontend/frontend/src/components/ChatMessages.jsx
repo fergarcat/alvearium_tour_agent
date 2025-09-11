@@ -55,7 +55,7 @@ function ChatMessages({ messages, isLoading }) {
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '4px' }}>
               <div style={{ maxWidth: '288px' }}>
                 <div style={{
-                  backgroundColor: '#2563eb',
+                  backgroundColor: '#dea142',
                   color: 'white',
                   padding: '12px 16px',
                   borderRadius: '18px',

@@ -85,9 +85,9 @@ function ChatInput({ newMessage, isLoading, setNewMessage, submitNewMessage, dis
             borderRadius: '50%',
             border: 'none',
             cursor: newMessage.trim() && !isLoading && !disabled ? 'pointer' : 'not-allowed',
-            backgroundColor: newMessage.trim() && !isLoading && !disabled ? '#3b82f6' : '#e5e7eb',
+            backgroundColor: newMessage.trim() && !isLoading && !disabled ? '#dea142' : '#e5e7eb',
             color: newMessage.trim() && !isLoading && !disabled ? 'white' : '#9ca3af',
-            boxShadow: newMessage.trim() && !isLoading && !disabled ? '0 4px 6px -1px rgba(0, 0, 0, 0.1)' : 'none',
+            boxShadow: newMessage.trim() && !isLoading && !disabled ? '0 4px 12px rgba(222, 161, 66, 0.4)' : 'none',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center'
