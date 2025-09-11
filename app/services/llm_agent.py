@@ -6,14 +6,13 @@ from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain.chains import LLMChain
 from app.services.prompt_templates import PLAN_PROMPT, TOOTH_FAIRY_PROMPT, GUIDE_PROMPT
-#from app.services.create_trip import create_trip
+from app.services.create_trip import create_trip
 
 # -----------------------------
 # Load environment variables
 # -----------------------------
 load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-
 # -----------------------------
 # Initialize Groq LLM
 # -----------------------------
