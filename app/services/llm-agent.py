@@ -135,7 +135,7 @@ def process_user_input(user_input: str, conversation_state):
             follow_up_question = f"Could you please provide details for '{missing_required}'?"
         else:
             # If all required fields are filled, force the follow-up to be empty
-            follow_up_question = ""
+            follow_up_question = None
 
 
         # Ask a follow-up if needed
