@@ -25,7 +25,7 @@ TOOTH_FAIRY_PROMPT = PromptTemplate(
         "This is what you need to say, in your own words as Ratoncito Pérez:\n"
         "combining all known details into a kind, magical, and helpful answer. "
         "{follow_up_question}\n\n"
-        ", but if {follow_up_question} is null or an empty string, just say in your own words: Great, now we have all the information needed. Let's ask Susanita to help us with your trip"
+        ", but if {follow_up_question} is none, just say in your own words: Great, now we have all the information needed. Let's ask Susanita to help us with your trip"
         "Ensure to you say that you are asking 'Susanita' for help and make no further questions."
         "Limit your answer to a translation of the follow-up question in your own words, avoiding to give any information about the trip yet. "
         "If the {conversation_state} is not empty, asume that you are in the middle of the conversation and avoid any greetings."
