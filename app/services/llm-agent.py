@@ -5,8 +5,8 @@ import re
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain.chains import LLMChain
-from app.services.prompt_templates import PLAN_PROMPT, TOOTH_FAIRY_PROMPT
-from app.services.create_trip import create_trip
+from app.services.prompt_templates import PLAN_PROMPT, TOOTH_FAIRY_PROMPT, GUIDE_PROMPT
+#from app.services.create_trip import create_trip
 
 # -----------------------------
 # Load environment variables
@@ -142,9 +142,17 @@ def process_user_input(user_input: str):
         if follow_up_question:
             return mouse_talking(conversation_state, follow_up_question)
         else:
-            mouse_trip_creation(conversation_state)
+            set_temperature(0) 
+            guide_chain = LLMChain(llm=llm, prompt=GUIDE_PROMPT)
+            guide_output = guide_chain.run({
+                "preferences": json.dumps(conversation_state, indent=2)
+            })
+            return guide_output.strip()
+            #print("FIN")
+
+
+            return mouse_trip_creation(conversation_state)
             return create_trip(conversation_state)  # Finalize trip creation
-            
 
     except Exception as e:
         import traceback
