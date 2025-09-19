@@ -1,0 +1,5 @@
+OPENROUTER_API_KEY=your_openrouter_api_key
+PINECONE_API_KEY=your_pinecone_api_key
+PINECONE_ENV=your_pinecone_environment
+PINECONE_INDEX=ratoncito-perez-rag
+TAVILY_API_KEY=your_tavily_api_key
